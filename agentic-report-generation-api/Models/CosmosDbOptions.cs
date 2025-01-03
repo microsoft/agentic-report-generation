@@ -4,7 +4,7 @@ namespace AgenticReportGenerationApi.Models
 {
     public class CosmosDbOptions
     {
-        public const string CosmosDb = "CosmosDb";
+        public const string CosmosDb = "CosmosDbOptions";
 
         [Required]
         public string DatabaseName { get; set; }
