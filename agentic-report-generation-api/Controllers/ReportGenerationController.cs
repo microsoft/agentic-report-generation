@@ -1,6 +1,7 @@
 ﻿using AgenticReportGenerationApi.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
 using System.Net.Mime;
 
 namespace AgenticReportGenerationApi.Controllers
@@ -10,14 +11,17 @@ namespace AgenticReportGenerationApi.Controllers
     public class ReportGenerationController : ControllerBase
     {
         private readonly Kernel _kernel;
+        private readonly IChatCompletionService _chat;
         private readonly ILogger<ReportGenerationController> _logger;
 
         public ReportGenerationController(
-            Kernel kernel, 
+            Kernel kernel,
+            IChatCompletionService chat,
             ILogger<ReportGenerationController> logger)
         {
             _kernel = kernel;
             _logger = logger;
+            _chat = chat;
         }
 
         [HttpPost()]
