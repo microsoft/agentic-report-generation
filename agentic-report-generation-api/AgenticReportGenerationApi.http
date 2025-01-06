@@ -1,0 +1,6 @@
+@AgenticReportGenerationApi_HostAddress = http://localhost:5266
+
+GET {{AgenticReportGenerationApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
