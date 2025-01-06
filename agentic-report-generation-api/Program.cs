@@ -5,6 +5,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel;
 using AgenticReportGenerationApi.Prompts;
 using EntertainmentChatApi.Services;
+using AgenticReportGenerationApi.Plugins;
 
 namespace AgenticReportGenerationApi
 {
@@ -39,6 +40,7 @@ namespace AgenticReportGenerationApi
             {
                 var builder = Kernel.CreateBuilder();
                 builder.AddAzureOpenAIChatCompletion(kernelOptions.DeploymentName, kernelOptions.EndPoint, kernelOptions.ApiKey);
+                builder.Plugins.AddFromType<ReportGenerationPlugin>("GenerateReport");
                 return builder.Build();
             });
 

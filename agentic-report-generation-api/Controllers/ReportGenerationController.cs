@@ -1,4 +1,5 @@
 ﻿using AgenticReportGenerationApi.Models;
+using EntertainmentChatApi.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
@@ -17,15 +18,18 @@ namespace AgenticReportGenerationApi.Controllers
         private readonly Kernel _kernel;
         private readonly IChatCompletionService _chat;
         private readonly ILogger<ReportGenerationController> _logger;
+        private readonly IChatHistoryManager _chatHistoryManager;
 
         public ReportGenerationController(
             Kernel kernel,
             IChatCompletionService chat,
+            IChatHistoryManager chathistorymanager,
             ILogger<ReportGenerationController> logger)
         {
             _kernel = kernel;
             _logger = logger;
             _chat = chat;
+            _chatHistoryManager = chathistorymanager;
         }
 
         [HttpPost()]
@@ -35,7 +39,31 @@ namespace AgenticReportGenerationApi.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Post([FromBody] ReportGenerationRequest chatRequest)
         {
-            var schema = CompanySchema();
+            try
+            {
+                if (string.IsNullOrEmpty(chatRequest.SessionId))
+                {
+                    // needed for new chats
+                    chatRequest.SessionId = Guid.NewGuid().ToString();
+                }
+
+                if (string.IsNullOrEmpty(chatRequest.Prompt))
+                {
+                    _logger.LogWarning("Chat request is missing prompt.");
+                    return new BadRequestResult();
+                }
+
+                var sessionId = chatRequest.SessionId;
+                var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
+
+                var schema = CompanySchema();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing request.");
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+                        
             return Ok();
         }
 
