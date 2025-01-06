@@ -12,7 +12,7 @@ public class Company
     public List<BoardMember> BoardMembers { get; set; }
     public List<TopExecutive> TopExecutives { get; set; }
     public List<CorporateTimeline> CorporateTimelines { get; set; }
-    public List<FinancialDatum> FinancialData { get; set; }
+    public List<FinancialData> FinancialData { get; set; }
     public List<NewsData> NewsData { get; set; }
     public List<SummaryData> SummaryData { get; set; }
 }
@@ -32,7 +32,7 @@ public class CorporateTimeline
     public string Headline { get; set; }
 }
 
-public class FinancialDatum
+public class FinancialData
 {
     public string FiscalPeriodEnding { get; set; }
     public string Currency { get; set; }

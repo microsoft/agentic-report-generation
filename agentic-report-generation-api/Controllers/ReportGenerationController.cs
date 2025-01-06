@@ -2,6 +2,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Newtonsoft.Json.Schema;
+using Newtonsoft.Json.Schema.Generation;
+using System;
+using System.Data;
 using System.Net.Mime;
 
 namespace AgenticReportGenerationApi.Controllers
@@ -31,7 +35,15 @@ namespace AgenticReportGenerationApi.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Post([FromBody] ReportGenerationRequest chatRequest)
         {
+            var schema = CompanySchema();
             return Ok();
+        }
+
+        private static string CompanySchema()
+        {
+            var generator = new JSchemaGenerator();
+            var schema = generator.Generate(typeof(Company));
+            return schema.ToString();
         }
     }
 }
