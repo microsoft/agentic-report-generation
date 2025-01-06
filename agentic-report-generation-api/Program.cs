@@ -3,6 +3,8 @@ using AgenticReportGenerationApi.Services;
 using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel;
+using AgenticReportGenerationApi.Prompts;
+using EntertainmentChatApi.Services;
 
 namespace AgenticReportGenerationApi
 {
@@ -42,6 +44,12 @@ namespace AgenticReportGenerationApi
 
             builder.Services.AddSingleton<IChatCompletionService>(sp =>
                      sp.GetRequiredService<Kernel>().GetRequiredService<IChatCompletionService>());
+
+            builder.Services.AddSingleton<IChatHistoryManager>(sp =>
+            {
+                var sysPrompt = CorePrompts.GetSystemPrompt();
+                return new ChatHistoryManager(sysPrompt);
+            });
 
             builder.Services.AddSingleton<ICosmosDbService, CosmosDbService>();
             builder.Services.AddEndpointsApiExplorer();
