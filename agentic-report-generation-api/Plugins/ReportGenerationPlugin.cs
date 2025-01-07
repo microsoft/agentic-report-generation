@@ -1,17 +1,11 @@
-﻿using AgenticReportGenerationApi.Services;
-using Microsoft.SemanticKernel;
+﻿using Microsoft.SemanticKernel;
 using System.ComponentModel;
 
 namespace AgenticReportGenerationApi.Plugins
 {
     public class ReportGenerationPlugin
     {
-        private readonly ICosmosDbService _cosmosDbService;
-
-        ReportGenerationPlugin(ICosmosDbService cosmosDbService)
-        {
-            _cosmosDbService = cosmosDbService;
-        }
+        // TODO: pass company in from cache
 
         [KernelFunction("get_executive_summary")]
         [Description("Generate an executive summary.")]
