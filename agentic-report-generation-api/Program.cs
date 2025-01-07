@@ -6,6 +6,7 @@ using Microsoft.SemanticKernel;
 using AgenticReportGenerationApi.Prompts;
 using EntertainmentChatApi.Services;
 using AgenticReportGenerationApi.Plugins;
+using Microsoft.AspNetCore.Mvc;
 
 namespace AgenticReportGenerationApi
 {
@@ -51,6 +52,11 @@ namespace AgenticReportGenerationApi
             {
                 var sysPrompt = CorePrompts.GetSystemPrompt();
                 return new ChatHistoryManager(sysPrompt);
+            });
+
+            builder.Services.Configure<ApiBehaviorOptions>(options =>
+            {
+                options.SuppressModelStateInvalidFilter = true;
             });
 
             builder.Services.AddSingleton<ICosmosDbService, CosmosDbService>();

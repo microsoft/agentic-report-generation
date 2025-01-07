@@ -1,4 +1,5 @@
 ﻿using AgenticReportGenerationApi.Models;
+using AgenticReportGenerationApi.Services;
 using EntertainmentChatApi.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
@@ -19,25 +20,28 @@ namespace AgenticReportGenerationApi.Controllers
         private readonly IChatCompletionService _chat;
         private readonly ILogger<ReportGenerationController> _logger;
         private readonly IChatHistoryManager _chatHistoryManager;
+        private readonly ICosmosDbService _cosmosDbService;
 
         public ReportGenerationController(
             Kernel kernel,
             IChatCompletionService chat,
             IChatHistoryManager chathistorymanager,
-            ILogger<ReportGenerationController> logger)
+            ILogger<ReportGenerationController> logger,
+            ICosmosDbService cosmosDbService)
         {
             _kernel = kernel;
             _logger = logger;
             _chat = chat;
             _chatHistoryManager = chathistorymanager;
+            _cosmosDbService = cosmosDbService;
         }
 
-        [HttpPost()]
+        [HttpPost("report-generator")]
         [Consumes(MediaTypeNames.Application.Json)]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> Post([FromBody] ReportGenerationRequest chatRequest)
+        public async Task<IActionResult> GenerateReport([FromBody] ReportGenerationRequest chatRequest)
         {
             try
             {
@@ -65,6 +69,51 @@ namespace AgenticReportGenerationApi.Controllers
             }
                         
             return Ok();
+        }
+
+        [HttpPost("create-company")]
+        [Consumes(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> CreateCompany([FromBody] Company company)
+        {
+            try
+            {
+               if (company == null)
+               {
+                    return new BadRequestResult();
+               }
+
+               company.Id = Guid.NewGuid().ToString();
+               await _cosmosDbService.AddAsync(company);
+
+               return Ok();
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Error processing request.");
+                return StatusCode(StatusCodes.Status400BadRequest);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing request.");
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        [HttpGet("by-id/{id}")]
+        public async Task<IActionResult> Get(string id, [FromQuery] string companyName)
+        {
+            var company = await _cosmosDbService.GetAsync(id, companyName);
+            return Ok(company);
+        }
+
+        [HttpGet("by-name/{companyName}")]
+        public async Task<IActionResult> Get(string companyName)
+        {
+            var company = await _cosmosDbService.GetAsync(companyName);
+            return Ok(company);
         }
 
         private static string CompanySchema()

@@ -5,16 +5,16 @@ public class Company
     [JsonProperty(PropertyName = "id")]
     public string Id { get; set; }
     [JsonProperty(PropertyName = "CompanyName")]
-    public string CompanyName { get; set; }
-    public string CompanyDescription { get; set; }
-    public int? Revenue { get; set; }
-    public int? MarketCap { get; set; }
-    public List<BoardMember> BoardMembers { get; set; }
-    public List<TopExecutive> TopExecutives { get; set; }
-    public List<CorporateTimeline> CorporateTimelines { get; set; }
-    public List<FinancialData> FinancialData { get; set; }
-    public List<NewsData> NewsData { get; set; }
-    public List<SummaryData> SummaryData { get; set; }
+    public string company_name { get; set; }
+    public string company_description { get; set; }
+    public string revenue { get; set; }
+    public string marketCap { get; set; }
+    public List<BoardMember> board_members { get; set; }
+    public List<TopExecutive> top_executives { get; set; }
+    public List<CorporateTimeline> corporate_timelines { get; set; }
+    public List<FinancialData> financial_data { get; set; }
+    public List<NewsData> news_data { get; set; }
+    public List<SummaryData> summary_data { get; set; }
 }
 
 public class BoardMember
