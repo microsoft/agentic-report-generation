@@ -4,6 +4,7 @@ using EntertainmentChatApi.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Newtonsoft.Json.Schema.Generation;
 using System.Net.Mime;
 
@@ -58,6 +59,12 @@ namespace AgenticReportGenerationApi.Controllers
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
 
                 var schema = CompanySchema();
+
+                ChatMessageContent? result = null;
+                result = await _chat.GetChatMessageContentAsync(
+                      chatHistory,
+                      executionSettings: new OpenAIPromptExecutionSettings { Temperature = 0.0, TopP = 0.0, ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions },
+                      kernel: _kernel);
             }
             catch (Exception ex)
             {
