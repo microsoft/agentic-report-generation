@@ -4,10 +4,7 @@ using EntertainmentChatApi.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using Newtonsoft.Json.Schema;
 using Newtonsoft.Json.Schema.Generation;
-using System;
-using System.Data;
 using System.Net.Mime;
 
 namespace AgenticReportGenerationApi.Controllers

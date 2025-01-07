@@ -1,10 +1,18 @@
-﻿using Microsoft.SemanticKernel;
+﻿using AgenticReportGenerationApi.Services;
+using Microsoft.SemanticKernel;
 using System.ComponentModel;
 
 namespace AgenticReportGenerationApi.Plugins
 {
     public class ReportGenerationPlugin
     {
+        private readonly ICosmosDbService _cosmosDbService;
+
+        ReportGenerationPlugin(ICosmosDbService cosmosDbService)
+        {
+            _cosmosDbService = cosmosDbService;
+        }
+
         [KernelFunction("get_executive_summary")]
         [Description("Generate an executive summary.")]
         public async Task GenerateExecutiveSummaryAsync()
