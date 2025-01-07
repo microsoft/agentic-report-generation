@@ -58,8 +58,6 @@ namespace AgenticReportGenerationApi.Controllers
                 var sessionId = chatRequest.SessionId;
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
 
-                var schema = CompanySchema();
-
                 ChatMessageContent? result = null;
                 result = await _chat.GetChatMessageContentAsync(
                       chatHistory,
@@ -120,6 +118,7 @@ namespace AgenticReportGenerationApi.Controllers
             return Ok(company);
         }
 
+        // TODO: May be needed for NL2SQL
         private static string CompanySchema()
         {
             var generator = new JSchemaGenerator();
