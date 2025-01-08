@@ -1,4 +1,5 @@
 ﻿using AgenticReportGenerationApi.Models;
+using AgenticReportGenerationApi.Prompts;
 using AgenticReportGenerationApi.Services;
 using EntertainmentChatApi.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -71,12 +72,11 @@ namespace AgenticReportGenerationApi.Controllers
                     return new BadRequestResult();
                 }
 
-                // TODO: Injected into additional system message.
-                var companyNames = await GetCompanyNamesAsync();
-
-                // Cache the company data
                 await CacheCompanyAsync(companyName);
-                
+                var companyNames = await GetCompanyNamesAsync();
+                var companyNamesPrompt = CorePrompts.GetCompanyNamesPrompt(companyNames);
+
+                chatHistory.AddSystemMessage(companyNamesPrompt);
                 chatHistory.AddUserMessage(chatRequest.Prompt);
 
                 ChatMessageContent? result = null;
@@ -169,7 +169,7 @@ namespace AgenticReportGenerationApi.Controllers
             }
         }
 
-        private async Task<List<string>> GetCompanyNamesAsync()
+        private async Task<string> GetCompanyNamesAsync()
         {
             if (!_memoryCache.TryGetValue("companyNames", out List<string> companyNames))
             {
@@ -177,7 +177,8 @@ namespace AgenticReportGenerationApi.Controllers
                 _memoryCache.Set("companyNames", companyNames, TimeSpan.FromMinutes(120));
             }
 
-            return companyNames;
+            var serialized = string.Join("| ", companyNames);
+            return serialized;
         }
     }
 }

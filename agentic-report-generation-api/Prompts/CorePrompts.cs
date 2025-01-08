@@ -38,5 +38,20 @@
         - Decline non client and company insights related requests.
         - Do not call the ReportGenerationPlugin if the request isn't client and company insights related.
         """;
+
+        public static string GetCompanyNamesPrompt(string companyNames) =>
+         $$$"""
+         The following is a pipe seperated list of company names available to use: {{{companyNames}}}
+
+         When processing user queries or generating responses:
+
+         1. If a company name is mentioned and it exactly matches one in this list, use that name.
+         2. If a company name is mentioned but doesn't exactly match any in the list:
+            a. Check for close matches (e.g., misspellings, abbreviations, or partial names).
+            b. If a close match is found, use the correct name from the list.
+            c. If multiple close matches are found, choose the most likely one based on context.
+            d. If unsure, mention the ambiguity and list possible matches.
+         3.  If no match or close match is found, inform that the company was not found.
+         """;
     }
 }
