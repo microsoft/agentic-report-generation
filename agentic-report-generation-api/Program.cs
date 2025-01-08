@@ -45,7 +45,8 @@ namespace AgenticReportGenerationApi
                 var builder = Kernel.CreateBuilder();
                 builder.AddAzureOpenAIChatCompletion(kernelOptions.DeploymentName, kernelOptions.EndPoint, kernelOptions.ApiKey);
                 var memoryCache = s.GetRequiredService<IMemoryCache>();
-                var reportGenerationPlugin = new ReportGenerationPlugin(memoryCache);
+                var logger = s.GetRequiredService<ILogger<ReportGenerationPlugin>>();
+                var reportGenerationPlugin = new ReportGenerationPlugin(memoryCache, logger);
                 builder.Plugins.AddFromObject(reportGenerationPlugin, "GenerateReport");
                 return builder.Build();
             });
