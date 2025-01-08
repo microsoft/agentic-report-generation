@@ -84,6 +84,11 @@ namespace AgenticReportGenerationApi.Controllers
 
                 return new OkObjectResult(result.Content);
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, $"Error processing request. {ex.Message}");
+                return StatusCode(StatusCodes.Status400BadRequest);
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing request.");
@@ -107,7 +112,6 @@ namespace AgenticReportGenerationApi.Controllers
 
                company.Id = Guid.NewGuid().ToString();
                await _cosmosDbService.AddAsync(company);
-
                return Ok();
             }
             catch (InvalidOperationException ex)
@@ -146,11 +150,19 @@ namespace AgenticReportGenerationApi.Controllers
 
         private async Task CacheCompanyAsync(string companyName)
         {
-            if (!_memoryCache.TryGetValue(companyName, out Company company))
+            if (!_memoryCache.TryGetValue(companyName, out Company? company))
             {
                 company = await _cosmosDbService.GetAsync(companyName);
 
-                _memoryCache.Set(companyName, company, TimeSpan.FromMinutes(120));
+                if (company == null)
+                {
+                    _logger.LogWarning($"Company '{companyName}' not found in database.");
+                    throw new InvalidOperationException($"Company '{companyName}' not found in database.");
+                }
+                else
+                {
+                    _memoryCache.Set(companyName, company, TimeSpan.FromMinutes(120));
+                }
             }
         }
     }

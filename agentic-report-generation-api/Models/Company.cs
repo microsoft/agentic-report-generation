@@ -43,7 +43,6 @@ public class FinancialData
     public override string ToString()
     {
         return $"Fiscal Period Ending: {FiscalPeriodEnding}, Currency: {Currency}, Total Revenue: {TotalRevenue}, Net Income: {NetIncome}, Net Income Margin Percent: {NetIncomeMarginPercent}";
-
     }
 }
 

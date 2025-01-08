@@ -46,28 +46,12 @@
                 //ResultsPerPrompt = 3,
             };
 
-            try
-            {
-                // Call the chat completion asking for 3 rounds to attempt to identify the intent
-                var result = await chat.GetChatMessageContentsAsync(
-                    chatHistory,
-                    executionSettings);
+            // Call the chat completion asking for 3 rounds to attempt to identify the intent
+            var result = await chat.GetChatMessageContentsAsync(
+                chatHistory,
+                executionSettings);
 
-                companyName = string.Join(", ", result.Select(o => o.ToString()));
-
-                // Matches words containing hyphens
-                /*var wordFrequencies = Regex.Matches(intentResult.ToLower(), @"\b[\w-]+\b")
-                                          .Cast<Match>()
-                                          .Select(m => m.Value.ToLower())
-                                          .GroupBy(s => s)
-                                          .OrderByDescending(g => g.Count());
-
-                intent = wordFrequencies.FirstOrDefault()?.Key;*/
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+            companyName = string.Join(", ", result.Select(o => o.ToString()));
 
             return companyName;
         }
