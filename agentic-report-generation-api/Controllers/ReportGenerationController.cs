@@ -2,6 +2,7 @@
 using AgenticReportGenerationApi.Services;
 using EntertainmentChatApi.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
@@ -19,19 +20,22 @@ namespace AgenticReportGenerationApi.Controllers
         private readonly ILogger<ReportGenerationController> _logger;
         private readonly IChatHistoryManager _chatHistoryManager;
         private readonly ICosmosDbService _cosmosDbService;
+        private readonly IMemoryCache _memoryCache;
 
         public ReportGenerationController(
             Kernel kernel,
             IChatCompletionService chat,
             IChatHistoryManager chathistorymanager,
             ILogger<ReportGenerationController> logger,
-            ICosmosDbService cosmosDbService)
+            ICosmosDbService cosmosDbService,
+            IMemoryCache memoryCache)
         {
             _kernel = kernel;
             _logger = logger;
             _chat = chat;
             _chatHistoryManager = chathistorymanager;
             _cosmosDbService = cosmosDbService;
+            _memoryCache = memoryCache;
         }
 
         [HttpPost("report-generator")]
@@ -55,6 +59,8 @@ namespace AgenticReportGenerationApi.Controllers
                     return new BadRequestResult();
                 }
 
+                // TODO: Get company name from prompt / intent and cache the company
+                
                 var sessionId = chatRequest.SessionId;
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
 
@@ -124,6 +130,16 @@ namespace AgenticReportGenerationApi.Controllers
             var generator = new JSchemaGenerator();
             var schema = generator.Generate(typeof(Company));
             return schema.ToString();
+        }
+
+        private async Task CacheCompanyAsync(string companyName)
+        {
+            if (!_memoryCache.TryGetValue(companyName, out Company company))
+            {
+                company = await _cosmosDbService.GetAsync(companyName);
+
+                _memoryCache.Set(companyName, company, TimeSpan.FromMinutes(120));
+            }
         }
     }
 }

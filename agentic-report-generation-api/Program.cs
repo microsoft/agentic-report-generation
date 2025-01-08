@@ -7,6 +7,7 @@ using AgenticReportGenerationApi.Prompts;
 using EntertainmentChatApi.Services;
 using AgenticReportGenerationApi.Plugins;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace AgenticReportGenerationApi
 {
@@ -31,6 +32,8 @@ namespace AgenticReportGenerationApi
             .Bind(builder.Configuration.GetSection(AzureOpenAiOptions.AzureOpenAI))
             .ValidateDataAnnotations();
 
+            builder.Services.AddMemoryCache();
+
             // Build the service provider
             var serviceProvider = builder.Services.BuildServiceProvider();
 
@@ -41,7 +44,9 @@ namespace AgenticReportGenerationApi
             {
                 var builder = Kernel.CreateBuilder();
                 builder.AddAzureOpenAIChatCompletion(kernelOptions.DeploymentName, kernelOptions.EndPoint, kernelOptions.ApiKey);
-                builder.Plugins.AddFromType<ReportGenerationPlugin>("GenerateReport");
+                var memoryCache = s.GetRequiredService<IMemoryCache>();
+                var reportGenerationPlugin = new ReportGenerationPlugin(memoryCache);
+                builder.Plugins.AddFromObject(reportGenerationPlugin, "GenerateReport");
                 return builder.Build();
             });
 
