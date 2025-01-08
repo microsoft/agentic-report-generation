@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using Microsoft.SemanticKernel.ChatCompletion;  // For ChatHistory
 
-namespace EntertainmentChatApi.Services;
+namespace AgenticReportGenerationApi.Services;
 
 public interface IChatHistoryManager
 {
