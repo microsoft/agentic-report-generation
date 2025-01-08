@@ -71,7 +71,7 @@ namespace AgenticReportGenerationApi.Controllers
                     return new BadRequestResult();
                 }
 
-                // TODO: Injected into additional system prompt
+                // TODO: Injected into additional system message.
                 var companyNames = await GetCompanyNamesAsync();
 
                 // Cache the company data
