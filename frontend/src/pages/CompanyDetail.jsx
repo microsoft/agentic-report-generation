@@ -58,8 +58,6 @@ export default function CompanyDetail() {
     e.preventDefault();
     setIsResizing(true);
   };
-    setIsResizing(true);
-  };
 
   useEffect(() => {
     const handleMouseMove = (e) => {
