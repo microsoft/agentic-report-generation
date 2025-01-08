@@ -1,6 +1,5 @@
 ﻿using AgenticReportGenerationApi.Models;
 using AgenticReportGenerationApi.Services;
-using EntertainmentChatApi.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.SemanticKernel;

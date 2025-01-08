@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel;
 using AgenticReportGenerationApi.Prompts;
-using EntertainmentChatApi.Services;
 using AgenticReportGenerationApi.Plugins;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
