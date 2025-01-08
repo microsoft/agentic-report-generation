@@ -1,6 +1,7 @@
 ﻿using AgenticReportGenerationApi.Models;
 using AgenticReportGenerationApi.Prompts;
 using AgenticReportGenerationApi.Services;
+using Asp.Versioning;
 using EntertainmentChatApi.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
@@ -12,8 +13,9 @@ using System.Net.Mime;
 
 namespace AgenticReportGenerationApi.Controllers
 {
-    [Route("api/[controller]")]
+    [ApiVersion("1.0")]
     [ApiController]
+    [Route("api/v{v:apiVersion}/[controller]")]
     public class ReportGenerationController : ControllerBase
     {
         private readonly Kernel _kernel;
@@ -39,6 +41,7 @@ namespace AgenticReportGenerationApi.Controllers
             _memoryCache = memoryCache;
         }
 
+        [MapToApiVersion("1.0")]
         [HttpPost("report-generator")]
         [Consumes(MediaTypeNames.Application.Json)]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -99,6 +102,7 @@ namespace AgenticReportGenerationApi.Controllers
             }
         }
 
+        [MapToApiVersion("1.0")]
         [HttpPost("create-company")]
         [Consumes(MediaTypeNames.Application.Json)]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -129,6 +133,7 @@ namespace AgenticReportGenerationApi.Controllers
             }
         }
 
+        [MapToApiVersion("1.0")]
         [HttpGet("by-id/{id}")]
         public async Task<IActionResult> Get(string id, [FromQuery] string companyName)
         {
@@ -136,6 +141,7 @@ namespace AgenticReportGenerationApi.Controllers
             return Ok(company);
         }
 
+        [MapToApiVersion("1.0")]
         [HttpGet("by-name/{companyName}")]
         public async Task<IActionResult> Get(string companyName)
         {

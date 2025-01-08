@@ -8,6 +8,7 @@ using EntertainmentChatApi.Services;
 using AgenticReportGenerationApi.Plugins;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using Asp.Versioning;
 
 namespace AgenticReportGenerationApi
 {
@@ -23,6 +24,22 @@ namespace AgenticReportGenerationApi
             builder.Configuration
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
+            builder.Services.AddApiVersioning(options =>
+            {
+                options.DefaultApiVersion = new ApiVersion(1);
+                options.ReportApiVersions = true;
+                options.AssumeDefaultVersionWhenUnspecified = true;
+                options.ApiVersionReader = ApiVersionReader.Combine(
+                    new UrlSegmentApiVersionReader(),
+                    new HeaderApiVersionReader("X-Api-Version"));
+            })
+            .AddMvc() // This is needed for controllers
+            .AddApiExplorer(options =>
+            {
+                options.GroupNameFormat = "'v'V";
+                options.SubstituteApiVersionInUrl = true;
+            });
 
             builder.Services.AddOptions<CosmosDbOptions>()
             .Bind(builder.Configuration.GetSection(CosmosDbOptions.CosmosDb))
