@@ -39,6 +39,12 @@ public class FinancialData
     public double? TotalRevenue { get; set; }
     public double? NetIncome { get; set; }
     public double? NetIncomeMarginPercent { get; set; }
+
+    public override string ToString()
+    {
+        return $"Fiscal Period Ending: {FiscalPeriodEnding}, Currency: {Currency}, Total Revenue: {TotalRevenue}, Net Income: {NetIncome}, Net Income Margin Percent: {NetIncomeMarginPercent}";
+
+    }
 }
 
 public class NewsData

@@ -59,24 +59,36 @@ namespace AgenticReportGenerationApi.Controllers
                     return new BadRequestResult();
                 }
 
-                // TODO: Get company name from prompt / intent and cache the company
-                
                 var sessionId = chatRequest.SessionId;
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
+
+                // Get company name from prompt
+                var companyName = await Util.GetCompanyName(_chat, chatRequest.Prompt);
+
+                if (companyName == "not_found")
+                {
+                    _logger.LogWarning("Company name not found in prompt.");
+                    return new BadRequestResult();
+                }
+
+                // Cache the company data
+                await CacheCompanyAsync(companyName);
+                
+                chatHistory.AddUserMessage(chatRequest.Prompt);
 
                 ChatMessageContent? result = null;
                 result = await _chat.GetChatMessageContentAsync(
                       chatHistory,
                       executionSettings: new OpenAIPromptExecutionSettings { Temperature = 0.0, TopP = 0.0, ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions },
                       kernel: _kernel);
+
+                return new OkObjectResult(result.Content);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing request.");
                 return StatusCode(StatusCodes.Status500InternalServerError);
             }
-                        
-            return Ok();
         }
 
         [HttpPost("create-company")]
