@@ -1,8 +1,9 @@
+// src/pages/CompanyList.jsx
 import React, { useState } from 'react';
 import Header from '../components/Header';
 import SearchBar from '../components/SearchBar';
 import CompanyCard from '../components/CompanyCard';
-import companiesData from '../data/companiesData.js';
+import companiesData from '../data/companiesData';
 
 export default function CompanyList() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -12,9 +13,10 @@ export default function CompanyList() {
   );
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Header appName="Explore Companies" />
-      <div className="flex flex-col items-center mt-6 px-4">
+
+      <div className="mt-6 px-4">
         <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
       </div>
 
