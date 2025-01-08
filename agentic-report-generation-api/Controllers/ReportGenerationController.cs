@@ -71,6 +71,9 @@ namespace AgenticReportGenerationApi.Controllers
                     return new BadRequestResult();
                 }
 
+                // TODO: Injected into additional system prompt
+                var companyNames = await GetCompanyNamesAsync();
+
                 // Cache the company data
                 await CacheCompanyAsync(companyName);
                 
@@ -164,6 +167,17 @@ namespace AgenticReportGenerationApi.Controllers
                     _memoryCache.Set(companyName, company, TimeSpan.FromMinutes(120));
                 }
             }
+        }
+
+        private async Task<List<string>> GetCompanyNamesAsync()
+        {
+            if (!_memoryCache.TryGetValue("companyNames", out List<string> companyNames))
+            {
+                companyNames = await _cosmosDbService.GetCompanyNamesAsync();
+                _memoryCache.Set("companyNames", companyNames, TimeSpan.FromMinutes(120));
+            }
+
+            return companyNames;
         }
     }
 }
