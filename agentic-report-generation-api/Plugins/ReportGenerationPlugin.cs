@@ -40,7 +40,7 @@ namespace AgenticReportGenerationApi.Plugins
         }
 
         [KernelFunction("summarize_executive_board_changes")]
-        [Description("Summarize executive or board changes for a given company.")]
+        [Description("Summarize executive and board changes for a given company.")]
         public async Task SummarizeExecutiveBoardChangesAsync([Description("The name of the company for which to generate the summary")] string companyName)
         {
         }
