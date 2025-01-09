@@ -88,8 +88,24 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("summarize_corporate_timelines")]
         [Description("Summarize corporate timelines for the client when explicitly asked for by the user.")]
-        public async Task SummarizeCorporateTimelines([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string SummarizeCorporateTimelines([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            _logger.LogInformation($"Generating corporate timelines for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                CorporateTimeline[] corporateTimelineArray = company.corporate_timelines.ToArray();
+                result = string.Join(Environment.NewLine, corporateTimelineArray.Select(ct => ct.ToString()));
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
         }
 
         [KernelFunction("get_full_summary")]
