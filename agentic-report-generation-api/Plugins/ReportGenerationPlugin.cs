@@ -96,6 +96,7 @@ namespace AgenticReportGenerationApi.Plugins
         [Description("Get full summary for a given company.")]
         public async Task GetFullSummary([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            throw new NotImplementedException();
         }
 
         [KernelFunction("get_news_summary")]
