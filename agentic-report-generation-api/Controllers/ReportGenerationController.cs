@@ -65,8 +65,11 @@ namespace AgenticReportGenerationApi.Controllers
                 var sessionId = chatRequest.SessionId;
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
 
+                var companyNames = await GetCompanyNamesAsync();
+                var companyNamesPrompt = CorePrompts.GetCompanyNamesPrompt(companyNames);
+
                 // Get company name from prompt
-                var companyName = await Util.GetCompanyName(_chat, chatRequest.Prompt);
+                var companyName = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
 
                 if (companyName == "not_found")
                 {
@@ -74,9 +77,7 @@ namespace AgenticReportGenerationApi.Controllers
                     return new BadRequestResult();
                 }
 
-                await CacheCompanyAsync(companyName);
-                var companyNames = await GetCompanyNamesAsync();
-                var companyNamesPrompt = CorePrompts.GetCompanyNamesPrompt(companyNames);
+                await CacheCompanyAsync(companyName);                
 
                 chatHistory.AddSystemMessage(companyNamesPrompt);
                 chatHistory.AddUserMessage(chatRequest.Prompt);

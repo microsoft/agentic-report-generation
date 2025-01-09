@@ -5,37 +5,14 @@
     
     internal static class Util
     {
-        public static async Task<string> GetCompanyName(IChatCompletionService chat, string query)
+        public static async Task<string> GetCompanyName(IChatCompletionService chat, string query, string companyNamesPrompt)
         {
             // ChatHistory is local to this helper since we are only using it to detect intent
             ChatHistory chatHistory = new ChatHistory();
 
             var companyName = "not_found";
 
-            chatHistory.AddSystemMessage(
-                $@"Return the company name specified from the user. The user will ask to generate one or more of the following report sections for a company:
-                    - Board Members
-                    - Top Executives
-                    - Corporate Timelines
-                    - Financial Data
-                    - News Data
-                    - Summary Data
-                It is important to find the name of the company this report is being generated for. The company name will be used to query the database for the company's data.
-
-                You must return the name of the company as a string. If the company name cannot be found, return 'not_found'.
-
-                [Examples user prompts]
-                User question: Generate the executive summary for Tesla.
-                Company Name: Tesla
-                User question: Generate all sections of the report for Apple.
-                Company Name: Apple
-                User question: Give me the financial data for Microsoft.
-                Company Name: Microsoft
-                User question: Give me the news data and financial data.
-                Company Name: not_found
-
-                Per user query, what is the Company Name?
-                Company Name:");
+            chatHistory.AddSystemMessage(companyNamesPrompt);
 
             chatHistory.AddUserMessage(query);
 
