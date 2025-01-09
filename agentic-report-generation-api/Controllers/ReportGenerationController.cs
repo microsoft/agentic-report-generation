@@ -1,5 +1,7 @@
 ﻿using AgenticReportGenerationApi.Models;
+using AgenticReportGenerationApi.Prompts;
 using AgenticReportGenerationApi.Services;
+using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.SemanticKernel;
@@ -10,8 +12,9 @@ using System.Net.Mime;
 
 namespace AgenticReportGenerationApi.Controllers
 {
-    [Route("api/[controller]")]
+    [ApiVersion("1.0")]
     [ApiController]
+    [Route("api/v{v:apiVersion}/[controller]")]
     public class ReportGenerationController : ControllerBase
     {
         private readonly Kernel _kernel;
@@ -37,6 +40,7 @@ namespace AgenticReportGenerationApi.Controllers
             _memoryCache = memoryCache;
         }
 
+        [MapToApiVersion("1.0")]
         [HttpPost("report-generator")]
         [Consumes(MediaTypeNames.Application.Json)]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -58,26 +62,47 @@ namespace AgenticReportGenerationApi.Controllers
                     return new BadRequestResult();
                 }
 
-                // TODO: Get company name from prompt / intent and cache the company
-                
                 var sessionId = chatRequest.SessionId;
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
+
+                var companyNames = await GetCompanyNamesAsync();
+                var companyNamesPrompt = CorePrompts.GetCompanyNamesPrompt(companyNames);
+
+                // Get company name from prompt
+                var companyName = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
+
+                if (companyName == "not_found")
+                {
+                    _logger.LogWarning("Company name not found in prompt.");
+                    return new BadRequestResult();
+                }
+
+                await CacheCompanyAsync(companyName);                
+
+                chatHistory.AddSystemMessage(companyNamesPrompt);
+                chatHistory.AddUserMessage(chatRequest.Prompt);
 
                 ChatMessageContent? result = null;
                 result = await _chat.GetChatMessageContentAsync(
                       chatHistory,
                       executionSettings: new OpenAIPromptExecutionSettings { Temperature = 0.0, TopP = 0.0, ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions },
                       kernel: _kernel);
+
+                return new OkObjectResult(result.Content);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, $"Error processing request. {ex.Message}");
+                return StatusCode(StatusCodes.Status400BadRequest);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing request.");
                 return StatusCode(StatusCodes.Status500InternalServerError);
             }
-                        
-            return Ok();
         }
 
+        [MapToApiVersion("1.0")]
         [HttpPost("create-company")]
         [Consumes(MediaTypeNames.Application.Json)]
         [ProducesResponseType(StatusCodes.Status201Created)]
@@ -94,7 +119,6 @@ namespace AgenticReportGenerationApi.Controllers
 
                company.Id = Guid.NewGuid().ToString();
                await _cosmosDbService.AddAsync(company);
-
                return Ok();
             }
             catch (InvalidOperationException ex)
@@ -109,6 +133,7 @@ namespace AgenticReportGenerationApi.Controllers
             }
         }
 
+        [MapToApiVersion("1.0")]
         [HttpGet("by-id/{id}")]
         public async Task<IActionResult> Get(string id, [FromQuery] string companyName)
         {
@@ -116,6 +141,7 @@ namespace AgenticReportGenerationApi.Controllers
             return Ok(company);
         }
 
+        [MapToApiVersion("1.0")]
         [HttpGet("by-name/{companyName}")]
         public async Task<IActionResult> Get(string companyName)
         {
@@ -133,12 +159,32 @@ namespace AgenticReportGenerationApi.Controllers
 
         private async Task CacheCompanyAsync(string companyName)
         {
-            if (!_memoryCache.TryGetValue(companyName, out Company company))
+            if (!_memoryCache.TryGetValue(companyName, out Company? company))
             {
                 company = await _cosmosDbService.GetAsync(companyName);
 
-                _memoryCache.Set(companyName, company, TimeSpan.FromMinutes(120));
+                if (company == null)
+                {
+                    _logger.LogWarning($"Company '{companyName}' not found in database.");
+                    throw new InvalidOperationException($"Company '{companyName}' not found in database.");
+                }
+                else
+                {
+                    _memoryCache.Set(companyName, company, TimeSpan.FromMinutes(120));
+                }
             }
+        }
+
+        private async Task<string> GetCompanyNamesAsync()
+        {
+            if (!_memoryCache.TryGetValue("companyNames", out List<string> companyNames))
+            {
+                companyNames = await _cosmosDbService.GetCompanyNamesAsync();
+                _memoryCache.Set("companyNames", companyNames, TimeSpan.FromMinutes(120));
+            }
+
+            var serialized = string.Join("| ", companyNames);
+            return serialized;
         }
     }
 }
