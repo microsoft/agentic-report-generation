@@ -18,10 +18,11 @@ namespace AgenticReportGenerationApi.Plugins
         }
 
         [KernelFunction("get_executive_summary")]
-        [Description("Generates an executive summary for a given company.")]
-        public string GenerateExecutiveSummaryAsync([Description("The name of the company for which to generate the summary. If a period is included, it may be part of the company name.")] string companyName)
+        [Description("Generates an overview for a given company.")]
+        public string GenerateCompanyOverviewAsync([Description("The name of the company for which to generate the summary.")] string companyName)
         {
-            _logger.LogInformation($"Generating executive summary for company '{companyName}'.");
+
+            _logger.LogInformation($"Generating overview summary for company '{companyName}'.");
             var result = string.Empty;
 
             var company = GetCompany(companyName);
@@ -39,27 +40,33 @@ namespace AgenticReportGenerationApi.Plugins
             return result;
         }
 
-        [KernelFunction("summarize_executive_board_changes")]
-        [Description("Summarize executive and board changes for a given company.")]
-        public async Task SummarizeExecutiveBoardChangesAsync([Description("The name of the company for which to generate the summary")] string companyName)
+        [KernelFunction("summarize_board_changes")]
+        [Description("Summarize board changes for a given company.")]
+        public async Task SummarizeBoardChangesAsync([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+        }
+
+        [KernelFunction("summarize_executive_changes")]
+        [Description("Summarize executive changes for a given company.")]
+        public async Task SummarizeExecutiveChangesAsync([Description("The name of the company for which to generate the summary.")] string companyName)
         {
         }
 
         [KernelFunction("summarize_rra_activity")]
-        [Description("Summarize RRA activity over the last three years when explicitly asked for by the user.")]
-        public async Task SummarizeRraActivityAsync([Description("The name of the company for which to generate the summary")] string companyName)
+        [Description("Summarize RRA activity for a given time range when explicitly asked for by the user.")]
+        public async Task SummarizeRraActivityAsync([Description("The name of the company for which to generate the summary.")] string companyName)
         {
         }
 
         [KernelFunction("confirm_asn")]
         [Description("Confirm if ASN was conducted with the client in the last three years for a given company.")]
-        public async Task ConfirmAsnAsync([Description("The name of the company for which to generate the summary")] string companyName)
+        public async Task ConfirmAsnAsync([Description("The name of the company for which to generate the summary.")] string companyName)
         {
         }
 
         [KernelFunction("summarize_financials")]
         [Description("Summarize financial data for a given company.")]
-        public string SummarizeFinancialsAsync([Description("The name of the company for which to generate the summary")] string companyName)
+        public string SummarizeFinancialsAsync([Description("The name of the company for which to generate the summary.")] string companyName)
         {
             _logger.LogInformation($"Generating financial summary for company '{companyName}'.");
             var result = string.Empty;
@@ -81,13 +88,19 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("summarize_corporate_timelines")]
         [Description("Summarize corporate timelines for the client when explicitly asked for by the user.")]
-        public async Task SummarizeCorporateTimelinesAsync([Description("The name of the company for which to generate the summary")] string companyName)
+        public async Task SummarizeCorporateTimelinesAsync([Description("The name of the company for which to generate the summary.")] string companyName)
         {
         }
 
         [KernelFunction("get_full_summary")]
-        [Description("Get full summary.")]
-        public async Task GetFullSummaryAsync([Description("The name of the company for which to generate the summary")] string companyName)
+        [Description("Get full summary for a given company.")]
+        public async Task GetFullSummaryAsync([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+        }
+
+        [KernelFunction("get_news_summary")]
+        [Description("Get news summary for a given company.")]
+        public async Task GetNewsSummaryAsync([Description("The name of the company for which to generate the summary.")] string companyName)
         {
         }
 
