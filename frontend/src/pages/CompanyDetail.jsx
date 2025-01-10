@@ -2,54 +2,46 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import companiesData from '../data/companiesData';
+import {getCompanies} from '../helpers';
 import ChatInterface from '../components/ChatInterface';
 
 export default function CompanyDetail() {
   const { companyId } = useParams();
   const [company, setCompany] = useState(null);
   const [news, setNews] = useState([]);
+  const [companiesData, setCompaniesData] = useState([]);
+
 
   // For resizing
   const [chatWidth, setChatWidth] = useState(400);
   const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
+    async function fetchCompanies() {
+      const data = await getCompanies();
+      setCompaniesData(data);
+    }
+    fetchCompanies();
+  }, []); // Empty dependency array ensures this runs once on mount
+
+  useEffect(() => {
     const currentCompany = companiesData.find((c) => c.id === companyId);
     setCompany(currentCompany);
 
-    async function fetchNews() {
+    async function getNews() {
       try {
-        const response = await axios.get('/api/company-news', {
-          params: { company: currentCompany.name },
-        });
-        setNews([
-          {
-            title: 'Sample Headline 1',
-            thumbnail: 'https://via.placeholder.com/150',
-            date: '2025-01-01',
-            source: 'Tech Times',
-            snippet: 'This is a sample snippet about the company news.',
-            url: '#'
-          },
-          {
-            title: 'Sample Headline 2',
-            thumbnail: 'https://via.placeholder.com/150',
-            date: '2025-01-02',
-            source: 'Biz Journal',
-            snippet: 'Another news snippet about the company...',
-            url: '#'
-          }
-        ]);
+        const news = currentCompany.news_data;
+        console.log('Fetching news for', currentCompany.news_data);
+        setNews(news);
       } catch (error) {
         console.error(error);
       }
     }
 
     if (currentCompany) {
-      fetchNews();
+      getNews();
     }
-  }, [companyId]);
+  }, [companyId, companiesData]); // Run this effect when companyId or companiesData changes
 
   /* ----------------- 
      Handle Resizing 
@@ -106,17 +98,17 @@ export default function CompanyDetail() {
             Home
           </Link>
           <span className="mx-2">{'>'}</span>
-          <span className="text-textLight">{company.name}</span>
+          <span className="text-textLight">{company.company_name}</span>
         </div>
 
         {/* Company Header */}
         <div className="flex items-center mb-6">
           <img
-            src={company.logo}
-            alt={company.name}
+            src={company.thumbnail}
+            alt={company.company_name}
             className="w-12 h-12 object-contain mr-4"
           />
-          <h1 className="text-2xl font-bold text-textDefault">{company.name} Overview</h1>
+          <h1 className="text-2xl font-bold text-textDefault">{company.company_name} Overview</h1>
         </div>
 
         {/* Latest News Section */}
@@ -132,12 +124,12 @@ export default function CompanyDetail() {
                   className="bg-backgroundSurface p-4 rounded shadow flex flex-col md:flex-row border border-borderDefault"
                 >
                   <img
-                    src={article.thumbnail}
-                    alt={article.title}
+                    src={company.thumbnail || ""}
+                    alt={article.headline}
                     className="w-32 h-32 object-cover mr-4 mb-4 md:mb-0 rounded"
                   />
                   <div>
-                    <h3 className="text-lg font-bold text-textDefault">{article.title}</h3>
+                    <h3 className="text-lg font-bold text-textDefault">{article.headline}</h3>
                     <p className="text-sm text-textMuted">
                       {article.date} | {article.source}
                     </p>
@@ -167,7 +159,7 @@ export default function CompanyDetail() {
         }}
       >
         {/* The ChatInterface itself */}
-        <ChatInterface />
+        <ChatInterface company={company}/>
 
         {/* Resizing handle (drag this to resize) */}
         <div

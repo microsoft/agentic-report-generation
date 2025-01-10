@@ -1,84 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, User, FileText, ChevronDown } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
+import { reportGeneration } from '../helpers';
 
-const ChatInterface = () => {
+
+const ChatInterface = ({ company }) => {
+  const { company_name } = company;
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isLoading) {
+      const element = document.querySelector('.dot-flashing');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [isLoading]);
 
   const quickQueries = [
     'Generate an executive summary',
-    'Summarize executive/board changes',
-    'Summarize RRA activity (3 years)',
+    'Summarize executive & board changes',
+    `Summarize ${company_name} activity (3 years)`,
     'Confirm ASN status',
     'Summarize financials',
-    'Summarize corporate timeline'
+    'Summarize corporate timeline',
   ];
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!inputValue.trim()) return;
+    setIsLoading(true);
 
-    // Add user message
-    const userMessage = {
-      id: messages.length + 1,
-      type: 'user',
-      content: inputValue,
-    };
+    try {
+      const prompt = `company name: ${company_name}\n${inputValue}`;
+      const response = await reportGeneration(prompt);
 
-    // Add AI response (sample data)
-    const aiResponse = {
-      id: messages.length + 2,
-      type: 'ai',
-      content: (
-        <div className="space-y-4">
-          <div>
-            <h3 className="font-semibold mb-2">Overview</h3>
-            <p className="mb-2">
-              Tesla, Inc. is a leading electric vehicle and clean energy company known for its electric cars, battery energy storage, and solar products. The company aims to accelerate the world's transition to sustainable energy.
-            </p>
-            <div className="space-y-1">
-              <p>• Company Type: Public (NASDAQ: TSLA)</p>
-              <p>• Employees: 127,855 (2023)</p>
-              <p>• Industry: Automotive, Energy</p>
-              <p>• Index: S&P 500, NASDAQ-100</p>
-              <p>• Headquarters: Austin, Texas, USA</p>
-            </div>
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2">Recent Executive Changes</h3>
-            <div className="space-y-1">
-              <p>• CFO transition: Zachary Kirkhorn stepped down (Aug 2023)</p>
-              <p>• Vaibhav Taneja appointed as CFO (Aug 2023)</p>
-            </div>
-          </div>
-        </div>
-      ),
-      citations: [
-        {
-          source: 'Annual Report (10-K)',
-          date: 'FY 2023',
-          type: 'SEC Filing'
-        },
-        {
-          source: 'Q3 2023 Earnings Call Transcript',
-          date: 'October 18, 2023',
-          type: 'Earnings Call'
-        }
-      ]
-    };
+      // User message
+      const userMessage = {
+        id: messages.length + 1,
+        type: 'user',
+        content: inputValue,
+      };
 
-    setMessages([...messages, userMessage, aiResponse]);
-    setInputValue('');
+      // AI response
+      const aiResponse = {
+        id: messages.length + 2,
+        type: 'ai',
+        content: response, // The Markdown content
+      };
+
+      setMessages((prev) => [...prev, userMessage, aiResponse]);
+      setInputValue('');
+    } catch (error) {
+      console.error('Error fetching response:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleQuickQuery = (query) => {
     setInputValue(query);
   };
-
-  React.useEffect(() => {
-    if (inputValue) {
-      handleSend();
-    }
-  }, [inputValue]);
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -95,16 +80,35 @@ const ChatInterface = () => {
           <div className="flex-1 flex flex-col items-center justify-center">
             <MessageSquare className="w-6 h-6 stroke-[1.5] mb-3 text-primary" />
             <h1 className="text-2xl font-medium mb-2">What can I help with?</h1>
-            <p className="text-textLight">Ask about company insights or generate reports</p>
+            <p className="text-textLight">
+              Ask about company insights or generate reports
+            </p>
+            {isLoading && (
+                <div className="py-4 flex justify-start">
+                  <div className="max-w-[75%] flex items-start gap-3">              
+                    <div className="bg-backgroundSurface px-4 py-3 rounded-2xl border border-borderDefault">
+                      <div className="dot-flashing"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto rounded-2xl bg-backgroundMessage p-4">
             <div className="max-w-3xl mx-auto">
-              {messages.map(message => (
+              {messages.map((message) => (
                 <div key={message.id} className="py-4">
-                  <div className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div
+                    className={`flex ${
+                      message.type === 'user' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
                     {/* Message content wrapper */}
-                    <div className={`max-w-[75%] flex items-start gap-3 ${message.type === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                    <div
+                      className={`max-w-[75%] flex items-start gap-3 ${
+                        message.type === 'user' ? 'flex-row-reverse' : 'flex-row'
+                      }`}
+                    >
                       {/* Avatar - Show on left for AI, right for user */}
                       <div className="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center bg-backgroundSurface border border-borderDefault">
                         {message.type === 'user' ? (
@@ -115,10 +119,31 @@ const ChatInterface = () => {
                       </div>
 
                       {/* Message content */}
-                      <div className={`min-w-0 ${message.type === 'user' ? 'items-end' : 'items-start'}`}>
-                        <div className={`prose prose-invert max-w-none prose-p:leading-relaxed 
-                          ${message.type === 'user' ? 'bg-primary text-white px-4 py-3 rounded-2xl' : 'bg-backgroundSurface px-4 py-3 rounded-2xl border border-borderDefault'}`}>
-                          {message.content}
+                      <div
+                        className={`min-w-0 ${
+                          message.type === 'user' ? 'items-end' : 'items-start'
+                        }`}
+                      >
+                        <div
+                          className={`prose prose-invert max-w-none
+                            prose-headings:font-bold
+                            prose-p:leading-relaxed
+                            ${
+                              message.type === 'user'
+                                ? 'bg-primary text-white px-4 py-3 rounded-2xl'
+                                : 'bg-backgroundSurface px-4 py-3 rounded-2xl border border-borderDefault'
+                            }`}
+                        >
+                          {message.type === 'ai' ? (
+                            <ReactMarkdown
+                              remarkPlugins={[remarkBreaks, remarkGfm]}
+                              className="prose-sm sm:prose-base whitespace-pre-wrap"
+                            >
+                              {message.content}
+                            </ReactMarkdown>
+                          ) : (
+                            message.content
+                          )}
                         </div>
 
                         {/* Citations */}
@@ -129,7 +154,10 @@ const ChatInterface = () => {
                             </div>
                             <div className="p-4 space-y-2">
                               {message.citations.map((citation, index) => (
-                                <div key={index} className="flex justify-between items-center text-textLight">
+                                <div
+                                  key={index}
+                                  className="flex justify-between items-center text-textLight"
+                                >
                                   <span>{citation.source}</span>
                                   <span className="text-xs">{citation.date}</span>
                                 </div>
@@ -151,6 +179,20 @@ const ChatInterface = () => {
                   </div>
                 </div>
               ))}
+
+              {/* 3-dot "AI is typing" animation */}
+              {isLoading && (
+                <div className="py-4 flex justify-start">
+                  <div className="max-w-[75%] flex items-start gap-3">
+                    <div className="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center bg-backgroundSurface border border-borderDefault">
+                      <MessageSquare className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="bg-backgroundSurface px-4 py-3 rounded-2xl border border-borderDefault">
+                      <div className="dot-flashing"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -179,12 +221,14 @@ const ChatInterface = () => {
               onKeyPress={handleKeyPress}
               placeholder="Ask about company executives, board changes, or request a full summary..."
               className="flex-1 px-4 py-3.5 bg-transparent focus:outline-none text-textDefault placeholder-textLight"
+              disabled={isLoading}
             />
-            <button 
+            <button
               onClick={handleSend}
               className="px-4 py-2 mx-2 bg-primary hover:bg-secondary text-white text-sm rounded-lg transition-colors"
+              disabled={isLoading}
             >
-              Send
+              {isLoading ? 'Loading...' : 'Send'}
             </button>
           </div>
         </div>

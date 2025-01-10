@@ -1,15 +1,27 @@
 // src/pages/CompanyList.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import SearchBar from '../components/SearchBar';
 import CompanyCard from '../components/CompanyCard';
-import companiesData from '../data/companiesData';
+import {getCompanies} from '../helpers';
 
 export default function CompanyList() {
   const [searchTerm, setSearchTerm] = useState('');
 
+  const [companiesData, setCompaniesData] = useState([]);
+
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      const data = await getCompanies();
+      setCompaniesData(data);
+      console.log(data);
+    };
+
+    fetchCompanies();
+  }, []); // Empty dependency array ensures this runs once on mount
+
   const filteredCompanies = companiesData.filter((company) =>
-    company.name.toLowerCase().includes(searchTerm.toLowerCase())
+    company.company_name && company.company_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

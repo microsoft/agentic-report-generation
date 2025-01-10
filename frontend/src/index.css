@@ -18,3 +18,53 @@ html, body {
   background-color: #cccccc;
   border-radius: 4px;
 }
+
+
+ 
+  .dot-flashing {
+    position: relative;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: #666;
+    color: #666;
+    animation: dotFlashing 1s infinite linear alternate;
+    animation-delay: 0.5s;
+    margin: 0 2px;
+  }
+  .dot-flashing::before,
+  .dot-flashing::after {
+    content: '';
+    display: inline-block;
+    position: absolute;
+    top: 0;
+  }
+  .dot-flashing::before {
+    left: -6px;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: #666;
+    color: #666;
+    animation: dotFlashing 1s infinite alternate;
+    animation-delay: 0s;
+  }
+  .dot-flashing::after {
+    left: 6px;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: #666;
+    color: #666;
+    animation: dotFlashing 1s infinite alternate;
+    animation-delay: 1s;
+  }
+  @keyframes dotFlashing {
+    0% {
+      background-color: #999;
+    }
+    50%,
+    100% {
+      background-color: #333;
+    }
+  }
