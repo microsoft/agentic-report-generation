@@ -1,20 +1,34 @@
-import React, { useState } from 'react';
+// src/pages/CompanyList.jsx
+import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import SearchBar from '../components/SearchBar';
 import CompanyCard from '../components/CompanyCard';
-import companiesData from '../data/companiesData.js';
+import {getCompanies} from '../helpers';
 
 export default function CompanyList() {
   const [searchTerm, setSearchTerm] = useState('');
 
+  const [companiesData, setCompaniesData] = useState([]);
+
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      const data = await getCompanies();
+      setCompaniesData(data);
+      console.log(data);
+    };
+
+    fetchCompanies();
+  }, []); // Empty dependency array ensures this runs once on mount
+
   const filteredCompanies = companiesData.filter((company) =>
-    company.name.toLowerCase().includes(searchTerm.toLowerCase())
+    company.company_name && company.company_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col">
       <Header appName="Explore Companies" />
-      <div className="flex flex-col items-center mt-6 px-4">
+
+      <div className="mt-6 px-4">
         <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
       </div>
 

@@ -1,90 +1,87 @@
+// src/pages/CompanyDetail.jsx
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
-import companiesData from '../data/companiesData';
+import {getCompanies} from '../helpers';
 import ChatInterface from '../components/ChatInterface';
 
 export default function CompanyDetail() {
   const { companyId } = useParams();
   const [company, setCompany] = useState(null);
   const [news, setNews] = useState([]);
-  const [chatOpen, setChatOpen] = useState(true);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [userInput, setUserInput] = useState('');
+  const [companiesData, setCompaniesData] = useState([]);
+
+
+  // For resizing
+  const [chatWidth, setChatWidth] = useState(400);
+  const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
-    // Fetch the company data from local or API
+    async function fetchCompanies() {
+      const data = await getCompanies();
+      setCompaniesData(data);
+    }
+    fetchCompanies();
+  }, []); // Empty dependency array ensures this runs once on mount
+
+  useEffect(() => {
     const currentCompany = companiesData.find((c) => c.id === companyId);
     setCompany(currentCompany);
 
-    // Fetch news articles for the given company
-    // Replace this with your own API endpoint or a real news API
-    async function fetchNews() {
+    async function getNews() {
       try {
-        // Example placeholder API call
-        // In a real app, you might call something like:
-        // `https://newsapi.org/v2/everything?q=${company.name}&apiKey=XYZ`
-        const response = await axios.get('/api/company-news', {
-          params: { company: currentCompany.name },
-        });
-        // Example response data
-        // setNews(response.data.articles);
-        setNews([
-          {
-            title: 'Sample Headline 1',
-            thumbnail: 'https://via.placeholder.com/150',
-            date: '2025-01-01',
-            source: 'Tech Times',
-            snippet: 'This is a sample snippet about the company news.',
-            url: '#'
-          },
-          {
-            title: 'Sample Headline 2',
-            thumbnail: 'https://via.placeholder.com/150',
-            date: '2025-01-02',
-            source: 'Biz Journal',
-            snippet: 'Another news snippet about the company...',
-            url: '#'
-          }
-        ]);
+        const news = currentCompany.news_data;
+        console.log('Fetching news for', currentCompany.news_data);
+        setNews(news);
       } catch (error) {
         console.error(error);
       }
     }
 
     if (currentCompany) {
-      fetchNews();
+      getNews();
     }
-  }, [companyId]);
+  }, [companyId, companiesData]); // Run this effect when companyId or companiesData changes
 
-  // Chatbot logic (Mock example)
-  async function handleSendMessage() {
-    if (!userInput.trim()) return;
-    const userMessage = { role: 'user', content: userInput.trim() };
+  /* ----------------- 
+     Handle Resizing 
+   ------------------ */
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
 
-    // Add user message to chat
-    setChatMessages((prev) => [...prev, userMessage]);
-    setUserInput('');
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth < 200) {
+        setChatWidth(200);
+      } else if (newWidth > window.innerWidth * 0.9) {
+        setChatWidth(window.innerWidth * 0.9);
+      } else {
+        setChatWidth(newWidth);
+      }
+    };
 
-    try {
-      // Example AI API call
-      const response = await axios.post('/api/chat', {
-        messages: [...chatMessages, userMessage],
-        company: company?.name,
-      });
-      // Suppose the AI response returns in `response.data.answer`
-      const botMessage = { role: 'assistant', content: response.data.answer };
-      setChatMessages((prev) => [...prev, botMessage]);
-    } catch (error) {
-      console.error(error);
-    }
-  }
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   if (!company) {
     return (
       <div className="p-8 text-center">
         <h2 className="text-xl font-semibold">Company not found</h2>
-        <Link to="/" className="text-blue-500 underline">
+        <Link to="/" className="text-primary underline">
           Go to Home
         </Link>
       </div>
@@ -92,56 +89,56 @@ export default function CompanyDetail() {
   }
 
   return (
-    <div className="min-h-screen p-4 flex flex-col md:flex-row">
+    <div className="min-h-screen flex flex-col md:flex-row bg-surface">
       {/* Main Content */}
-      <div className="flex-1 md:mr-4 mb-4">
+      <div className="flex-1 md:mr-4 mb-4 px-4 py-6">
         {/* Breadcrumb */}
-        <div className="mb-4">
-          <Link to="/" className="text-blue-500 underline">
+        <div className="mb-2 text-sm">
+          <Link to="/" className="text-primary underline">
             Home
           </Link>
           <span className="mx-2">{'>'}</span>
-          <span className="text-gray-600">{company.name}</span>
+          <span className="text-textLight">{company.company_name}</span>
         </div>
 
         {/* Company Header */}
         <div className="flex items-center mb-6">
           <img
-            src={company.logo}
-            alt={company.name}
+            src={company.thumbnail}
+            alt={company.company_name}
             className="w-12 h-12 object-contain mr-4"
           />
-          <h1 className="text-2xl font-bold">{company.name} Overview</h1>
+          <h1 className="text-2xl font-bold text-textDefault">{company.company_name} Overview</h1>
         </div>
 
         {/* Latest News Section */}
         <div>
-          <h2 className="text-xl font-semibold mb-4">Latest News</h2>
+          <h2 className="text-xl font-semibold mb-4 text-textDefault">Latest News</h2>
           <div className="space-y-4">
             {news.length === 0 ? (
-              <p>No news available.</p>
+              <p className="text-textLight">No news available.</p>
             ) : (
               news.map((article, index) => (
                 <div
                   key={index}
-                  className="bg-white p-4 rounded shadow flex flex-col md:flex-row"
+                  className="bg-backgroundSurface p-4 rounded shadow flex flex-col md:flex-row border border-borderDefault"
                 >
                   <img
-                    src={article.thumbnail}
-                    alt={article.title}
-                    className="w-32 h-32 object-cover mr-4 mb-4 md:mb-0"
+                    src={company.thumbnail || ""}
+                    alt={article.headline}
+                    className="w-32 h-32 object-cover mr-4 mb-4 md:mb-0 rounded"
                   />
                   <div>
-                    <h3 className="text-lg font-bold">{article.title}</h3>
-                    <p className="text-sm text-gray-500">
+                    <h3 className="text-lg font-bold text-textDefault">{article.headline}</h3>
+                    <p className="text-sm text-textMuted">
                       {article.date} | {article.source}
                     </p>
-                    <p className="mt-2 text-gray-700">{article.snippet}</p>
+                    <p className="mt-2 text-textDefault">{article.snippet}</p>
                     <a
                       href={article.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 inline-block text-blue-500 underline"
+                      className="mt-2 inline-block text-primary underline text-sm"
                     >
                       Read More
                     </a>
@@ -153,8 +150,23 @@ export default function CompanyDetail() {
         </div>
       </div>
 
-      {/* Sidebar Chatbot */}
-      <ChatInterface />
+      {/* Sidebar Chat: Resizable */}
+      <div
+        className="relative bg-backgroundSurface shadow-md"
+        style={{
+          width: `${chatWidth}px`,
+          minWidth: '200px'
+        }}
+      >
+        {/* The ChatInterface itself */}
+        <ChatInterface company={company}/>
+
+        {/* Resizing handle (drag this to resize) */}
+        <div
+          className="absolute top-0 left-0 w-2 h-full cursor-col-resize z-10"
+          onMouseDown={handleMouseDown}
+        ></div>
+      </div>
     </div>
   );
 }

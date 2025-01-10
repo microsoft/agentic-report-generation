@@ -8,6 +8,9 @@ using AgenticReportGenerationApi.Plugins;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 using Asp.Versioning;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace AgenticReportGenerationApi
 {
@@ -49,6 +52,17 @@ namespace AgenticReportGenerationApi
             .ValidateDataAnnotations();
 
             builder.Services.AddMemoryCache();
+
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAllOrigins",
+                    builder =>
+                    {
+                        builder.AllowAnyOrigin()
+                               .AllowAnyMethod()
+                               .AllowAnyHeader();
+                    });
+            });
 
             // Build the service provider
             var serviceProvider = builder.Services.BuildServiceProvider();
@@ -97,8 +111,18 @@ namespace AgenticReportGenerationApi
                 app.UseSwagger();
                 app.UseSwaggerUI();
             }
+            else
+            {
+                app.UseExceptionHandler("/Home/Error");
+                app.UseHsts();
+            }
 
             app.UseHttpsRedirection();
+            app.UseStaticFiles();
+
+            app.UseRouting();
+
+            app.UseCors("AllowAllOrigins");
 
             app.UseAuthorization();
 
