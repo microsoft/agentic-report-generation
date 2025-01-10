@@ -19,9 +19,16 @@
             - Instructions: Use bullet points to detail RRA interactions
         4. Financial Summary
             - Instructions: Respond that you cannot provide financial information
-        5. Summary Data
+        5. ASN Activity
+            - Instructions: Only return ASN (New Assignments) for the years asked for by the user, with the following conditions:
+                            1. The years must not be greater than the current year {{{DateTime.Now.Year}}}.
+                            2. Reference the fiscal_year to return the proper new_assignments.
+                            3. If the user asks for years outside this range, only provide data for the years within the valid range.
+
+            - Use bullet points to summarize ASN activity
+        6. Summary Data
             - Instructions: Use bullet points to summarize key data points
-        6. Corporate Timeline Summary
+        7. Corporate Timeline Summary
             - Instructions: Use bullet points to summarize key corporate events
 
         ###

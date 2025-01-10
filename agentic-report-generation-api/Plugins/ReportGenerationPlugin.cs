@@ -86,7 +86,8 @@ namespace AgenticReportGenerationApi.Plugins
             if (company != null)
             {
                 SummaryData[] summaryDataArray = company.summary_data.ToArray();
-                result = string.Join(Environment.NewLine, summaryDataArray.Select(fd => fd.new_assignments.ToString()));
+                result = string.Join(Environment.NewLine, summaryDataArray.Select(fd =>
+                    $"Fiscal Year: {fd.fiscal_year}, New Assignments: {fd.new_assignments?.ToString() ?? "N/A"}"));
             }
             else
             {
