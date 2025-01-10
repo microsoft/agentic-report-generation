@@ -55,8 +55,8 @@ public class NewsData
 
 public class SummaryData
 {
-    public string AsOfDate { get; set; }
-    public string FiscalYear { get; set; }
+    public string as_of_date { get; set; }
+    public string fiscal_year { get; set; }
     public double? revenue { get; set; }
     public double? new_assignments { get; set; }
     public double PNBs { get; set; }
