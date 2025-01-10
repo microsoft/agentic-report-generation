@@ -18,10 +18,11 @@ namespace AgenticReportGenerationApi.Plugins
         }
 
         [KernelFunction("get_executive_summary")]
-        [Description("Generates an executive summary for a given company.")]
-        public string GenerateExecutiveSummary([Description("The name of the company for which to generate the summary. If a period is included, it may be part of the company name.")] string companyName)
+        [Description("Generates an overview for a given company.")]
+        public string GenerateCompanyOverview([Description("The name of the company for which to generate the summary.")] string companyName)
         {
-            _logger.LogInformation($"Generating executive summary for company '{companyName}'.");
+
+            _logger.LogInformation($"Generating overview summary for company '{companyName}'.");
             var result = string.Empty;
 
             var company = GetCompany(companyName);
@@ -39,27 +40,52 @@ namespace AgenticReportGenerationApi.Plugins
             return result;
         }
 
-        [KernelFunction("summarize_executive_board_changes")]
-        [Description("Summarize executive or board changes for a given company.")]
-        public async Task SummarizeExecutiveBoardChanges([Description("The name of the company for which to generate the summary")] string companyName)
+        [KernelFunction("summarize_board_changes")]
+        [Description("Summarize board changes for a given company.")]
+        public string SummarizeBoardChanges([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            throw new NotImplementedException();
+        }
+
+        [KernelFunction("summarize_executive_changes")]
+        [Description("Summarize executive changes for a given company.")]
+        public string SummarizeExecutiveChanges([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            throw new NotImplementedException();
         }
 
         [KernelFunction("summarize_rra_activity")]
-        [Description("Summarize RRA activity over the last three years when explicitly asked for by the user.")]
-        public async Task SummarizeRraActivity([Description("The name of the company for which to generate the summary")] string companyName)
+        [Description("Summarize RRA activity for a given time range when explicitly asked for by the user.")]
+        public string SummarizeRraActivity([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            _logger.LogInformation($"Generating RRA summary for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                SummaryData[] summaryDataArray = company.summary_data.ToArray();
+                result = string.Join(Environment.NewLine, summaryDataArray.Select(fd => fd.ToString()));
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
         }
 
         [KernelFunction("confirm_asn")]
         [Description("Confirm if ASN was conducted with the client in the last three years for a given company.")]
-        public async Task ConfirmAsn([Description("The name of the company for which to generate the summary")] string companyName)
+        public string ConfirmAsn([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            throw new NotImplementedException();
         }
 
         [KernelFunction("summarize_financials")]
         [Description("Summarize financial data for a given company.")]
-        public string SummarizeFinancials([Description("The name of the company for which to generate the summary")] string companyName)
+        public string SummarizeFinancials([Description("The name of the company for which to generate the summary.")] string companyName)
         {
             _logger.LogInformation($"Generating financial summary for company '{companyName}'.");
             var result = string.Empty;
@@ -81,14 +107,54 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("summarize_corporate_timelines")]
         [Description("Summarize corporate timelines for the client when explicitly asked for by the user.")]
-        public async Task SummarizeCorporateTimelines([Description("The name of the company for which to generate the summary")] string companyName)
+        public string SummarizeCorporateTimelines([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            _logger.LogInformation($"Generating corporate timelines for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                CorporateTimeline[] corporateTimelineArray = company.corporate_timelines.ToArray();
+                result = string.Join(Environment.NewLine, corporateTimelineArray.Select(ct => ct.ToString()));
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
         }
 
         [KernelFunction("get_full_summary")]
-        [Description("Get full summary.")]
-        public async Task GetFullSummary([Description("The name of the company for which to generate the summary")] string companyName)
+        [Description("Get full summary for a given company.")]
+        public string GetFullSummary([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            throw new NotImplementedException();
+        }
+
+        [KernelFunction("get_news_summary")]
+        [Description("Get news summary for a given company.")]
+        public string GetNewsSummary([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            _logger.LogInformation($"Generating news summary for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                NewsData[] newsDataArray = company.news_data.ToArray();
+                result = string.Join(Environment.NewLine + Environment.NewLine, newsDataArray.Select(n =>
+                $"NewsData:\n  Headline: {n.Headline}\n  Source: {n.Source}"));
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
         }
 
         private Company? GetCompany(string companyName)
