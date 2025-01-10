@@ -42,26 +42,45 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("summarize_board_changes")]
         [Description("Summarize board changes for a given company.")]
-        public async Task SummarizeBoardChanges([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string SummarizeBoardChanges([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            throw new NotImplementedException();
         }
 
         [KernelFunction("summarize_executive_changes")]
         [Description("Summarize executive changes for a given company.")]
-        public async Task SummarizeExecutiveChanges([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string SummarizeExecutiveChanges([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            throw new NotImplementedException();
         }
 
         [KernelFunction("summarize_rra_activity")]
         [Description("Summarize RRA activity for a given time range when explicitly asked for by the user.")]
-        public async Task SummarizeRraActivity([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string SummarizeRraActivity([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            _logger.LogInformation($"Generating RRA summary for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                SummaryData[] summaryDataArray = company.summary_data.ToArray();
+                result = string.Join(Environment.NewLine, summaryDataArray.Select(fd => fd.ToString()));
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
         }
 
         [KernelFunction("confirm_asn")]
         [Description("Confirm if ASN was conducted with the client in the last three years for a given company.")]
-        public async Task ConfirmAsn([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string ConfirmAsn([Description("The name of the company for which to generate the summary.")] string companyName)
         {
+            throw new NotImplementedException();
         }
 
         [KernelFunction("summarize_financials")]
@@ -110,7 +129,7 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("get_full_summary")]
         [Description("Get full summary for a given company.")]
-        public async Task GetFullSummary([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string GetFullSummary([Description("The name of the company for which to generate the summary.")] string companyName)
         {
             throw new NotImplementedException();
         }
