@@ -207,6 +207,7 @@ namespace AgenticReportGenerationApi.Controllers
             return serialized;
         }
 
+        [NonAction]
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddCors(options =>
@@ -221,6 +222,7 @@ namespace AgenticReportGenerationApi.Controllers
             });
         }
 
+        [NonAction]
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
             app.UseCors("AllowAllOrigins");
