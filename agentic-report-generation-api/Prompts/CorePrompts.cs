@@ -21,7 +21,7 @@
             - Instructions: Respond that you cannot provide financial information
         5. ASN Activity
             - Instructions: Only return ASN (New Assignments) for the years asked for by the user, with the following conditions:
-                            1. The years must not be greater than the current year {{{DateTime.Now.Year}}}.
+                            1. The current year is {{{DateTime.Now.Year}}}, so you will base the data off of this year.
                             2. Reference the fiscal_year to return the proper new_assignments.
                             3. If the user asks for years outside this range, only provide data for the years within the valid range.
 
