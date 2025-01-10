@@ -11,6 +11,7 @@ namespace AgenticReportGenerationApi.Services
         Task<Company> GetAsync(string id, string companyName);
         Task<Company?> GetAsync(string companyName);
         Task<List<string>> GetCompanyNamesAsync();
+        Task<List<Company>> GetAllCompaniesAsync();
     }
 
     public class CosmosDbService : ICosmosDbService
@@ -111,6 +112,22 @@ namespace AgenticReportGenerationApi.Services
             }
 
             return uniqueCompanyNames;
+        }
+
+        public async Task<List<Company>> GetAllCompaniesAsync()
+        {
+            var query = "SELECT * FROM c";
+            QueryDefinition queryDefinition = new QueryDefinition(query);
+            FeedIterator<Company> feedIterator = _container.GetItemQueryIterator<Company>(queryDefinition);
+            List<Company> companies = new List<Company>();
+
+            while (feedIterator.HasMoreResults)
+            {
+                FeedResponse<Company> currentResultSet = await feedIterator.ReadNextAsync();
+                companies.AddRange(currentResultSet.Resource);
+            }
+
+            return companies;
         }
     }
 }

@@ -6,13 +6,13 @@ export default function CompanyCard({ company }) {
   return (
     <div className="bg-white border border-borderDefault rounded-lg p-4 flex flex-col items-center transition-transform hover:scale-[1.01] hover:shadow-md">
       <img
-        src={company.logo}
+        src={company.thumbnail}
         alt={company.name}
         className="w-16 h-16 object-contain mb-4"
       />
-      <h2 className="text-lg font-semibold mb-2 text-textDefault">{company.name}</h2>
+      <h2 className="text-lg font-semibold mb-2 text-textDefault">{company.company_name}</h2>
       <p className="text-textLight text-sm text-center line-clamp-2">
-        {company.summary}
+        {company.company_description}
       </p>
       <Link
         to={`/detail/${company.id}`}

@@ -9,6 +9,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Newtonsoft.Json.Schema.Generation;
 using System.Net.Mime;
+using Microsoft.AspNetCore.Cors;
 
 namespace AgenticReportGenerationApi.Controllers
 {
@@ -70,6 +71,9 @@ namespace AgenticReportGenerationApi.Controllers
 
                 // Get company name from prompt
                 var companyName = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
+
+                // Remove double quotes from companyName
+                companyName = companyName.Replace("\"", "");
 
                 if (companyName == "not_found")
                 {
@@ -149,6 +153,22 @@ namespace AgenticReportGenerationApi.Controllers
             return Ok(company);
         }
 
+        [MapToApiVersion("1.0")]
+        [HttpGet("all-companies")]
+        public async Task<IActionResult> GetAllCompanies()
+        {
+            try
+            {
+                var companies = await _cosmosDbService.GetAllCompaniesAsync();
+                return Ok(companies);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving companies.");
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+        }
+
         // TODO: May be needed for NL2SQL
         private static string CompanySchema()
         {
@@ -185,6 +205,25 @@ namespace AgenticReportGenerationApi.Controllers
 
             var serialized = string.Join("| ", companyNames);
             return serialized;
+        }
+
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAllOrigins",
+                    builder =>
+                    {
+                        builder.AllowAnyOrigin()
+                               .AllowAnyMethod()
+                               .AllowAnyHeader();
+                    });
+            });
+        }
+
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        {
+            app.UseCors("AllowAllOrigins");
         }
     }
 }
