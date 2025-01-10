@@ -21,7 +21,6 @@ namespace AgenticReportGenerationApi.Plugins
         [Description("Generates an overview for a given company.")]
         public string GenerateCompanyOverview([Description("The name of the company for which to generate the summary.")] string companyName)
         {
-
             _logger.LogInformation($"Generating overview summary for company '{companyName}'.");
             var result = string.Empty;
 
