@@ -21,7 +21,6 @@ namespace AgenticReportGenerationApi.Plugins
         [Description("Generates an overview for a given company.")]
         public string GenerateCompanyOverview([Description("The name of the company for which to generate the summary.")] string companyName)
         {
-
             _logger.LogInformation($"Generating overview summary for company '{companyName}'.");
             var result = string.Empty;
 
@@ -76,11 +75,27 @@ namespace AgenticReportGenerationApi.Plugins
             return result;
         }
 
-        [KernelFunction("confirm_asn")]
-        [Description("Confirm if ASN was conducted with the client in the last three years for a given company.")]
-        public string ConfirmAsn([Description("The name of the company for which to generate the summary.")] string companyName)
+        [KernelFunction("get_asn")]
+        [Description("Gets the ASN, or new assignemnts, which were conducted for the company over the time period given.")]
+        public string GetAsn([Description("The name of the company for which to generate the summary.")] string companyName)
         {
-            throw new NotImplementedException();
+            _logger.LogInformation($"Generating ASN summary for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                SummaryData[] summaryDataArray = company.summary_data.ToArray();
+                result = string.Join(Environment.NewLine, summaryDataArray.Select(fd =>
+                    $"Fiscal Year: {fd.fiscal_year}, New Assignments: {fd.new_assignments?.ToString() ?? "N/A"}"));
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
         }
 
         [KernelFunction("summarize_financials")]
