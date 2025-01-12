@@ -10,6 +10,9 @@ using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Newtonsoft.Json.Schema.Generation;
 using System.Net.Mime;
 using Microsoft.AspNetCore.Cors;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using AgenticReportGenerationApi.Converters;
 
 namespace AgenticReportGenerationApi.Controllers
 {
@@ -86,8 +89,7 @@ namespace AgenticReportGenerationApi.Controllers
                 chatHistory.AddSystemMessage(companyNamesPrompt);
                 chatHistory.AddUserMessage(chatRequest.Prompt);
 
-                ChatMessageContent? result = null;
-                result = await _chat.GetChatMessageContentAsync(
+                ChatMessageContent? result = await _chat.GetChatMessageContentAsync(
                       chatHistory,
                       executionSettings: new OpenAIPromptExecutionSettings { Temperature = 0.0, TopP = 0.0, ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions },
                       kernel: _kernel);
@@ -112,28 +114,41 @@ namespace AgenticReportGenerationApi.Controllers
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> CreateCompany([FromBody] Company company)
+        public async Task<IActionResult> CreateCompany([FromBody] JsonElement companyJson)
         {
             try
             {
-               if (company == null)
-               {
-                    return new BadRequestResult();
-               }
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Converters = { new RraActivityJsonConverter() }
+                };
 
-               company.Id = Guid.NewGuid().ToString();
-               await _cosmosDbService.AddAsync(company);
-               return Ok();
+                var company = JsonSerializer.Deserialize<Company>(companyJson.GetRawText(), options);
+
+                if (company == null)
+                {
+                    return new BadRequestResult();
+                }
+
+                company.Id = Guid.NewGuid().ToString();
+                await _cosmosDbService.AddAsync(company);
+                return Ok();
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Error deserializing JSON.");
+                return BadRequest("Invalid JSON format.");
             }
             catch (InvalidOperationException ex)
             {
                 _logger.LogError(ex, "Error processing request.");
-                return StatusCode(StatusCodes.Status400BadRequest);
+                return BadRequest(ex.Message);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing request.");
-                return StatusCode(StatusCodes.Status500InternalServerError);
+                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
             }
         }
 
