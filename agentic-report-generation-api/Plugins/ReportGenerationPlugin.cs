@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
+using System.ComponentModel.Design;
 using System.Text.Json;
 
 namespace AgenticReportGenerationApi.Plugins
@@ -20,9 +21,12 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("get_executive_summary")]
         [Description("Generates an overview for a given company.")]
-        public string GenerateCompanyOverview([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string GenerateCompanyOverview(
+            [Description("The company id of the company for which to generate the summary.")] string companyId,
+            [Description("The company name for which to generate the summary.")] string companyName
+            )
         {
-            _logger.LogInformation($"Generating overview summary for company '{companyName}'.");
+            _logger.LogInformation($"Generating overview summary for company '{companyName} ({companyId})'.");
             var result = string.Empty;
 
             var company = GetCompany(companyName);
@@ -44,9 +48,12 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("summarize_board_changes")]
         [Description("Summarize board changes for a given company.")]
-        public string SummarizeBoardChanges([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string SummarizeBoardChanges(
+            [Description("The company id of the company for which to generate the summary.")] string companyId,
+            [Description("The company name for which to generate the summary.")] string companyName
+            )
         {
-            _logger.LogInformation($"Generating board changes for company '{companyName}'.");
+            _logger.LogInformation($"Generating board changes for company '{companyName} ({companyId})'.");
             var result = string.Empty;
             var company = GetCompany(companyName);
 
@@ -67,9 +74,12 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("summarize_executive_changes")]
         [Description("Summarize executive changes for a given company.")]
-        public string SummarizeExecutiveChanges([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string SummarizeExecutiveChanges(
+            [Description("The company id of the company for which to generate the summary.")] string companyId,
+            [Description("The company name for which to generate the summary.")] string companyName
+            )
         {
-            _logger.LogInformation($"Generating executive changes for company '{companyName}'.");
+            _logger.LogInformation($"Generating executive changes for company '{companyName} ({companyId})'.");
             var result = string.Empty;
             var company = GetCompany(companyName);
 
@@ -90,9 +100,12 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("summarize_rra_activity")]
         [Description("Summarize RRA activity for a specified fiscal year or range of fiscal years when explicitly asked for by the user.")]
-        public string SummarizeRraActivity([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string SummarizeRraActivity(
+            [Description("The company id of the company for which to generate the summary.")] string companyId,
+            [Description("The company name for which to generate the summary.")] string companyName
+            )
         {
-            _logger.LogInformation($"Generating RRA summary for company '{companyName}'.");
+            _logger.LogInformation($"Generating RRA summary for company '{companyName} ({companyId})'.");
             var result = string.Empty;
             var company = GetCompany(companyName);
 
@@ -113,11 +126,14 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("get_asn")]
         [Description("Gets the ASN, or new assignments, which were conducted for the company during the specified fiscal year or range of fiscal years when explicitly asked by the user.")]
-        public string GetAsn([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string GetAsn(
+            [Description("The company id of the company for which to generate the summary.")] string companyId,
+            [Description("The company name for which to generate the summary.")] string companyName
+            )
         {
-            _logger.LogInformation($"Generating ASN summary for company '{companyName}'.");
+            _logger.LogInformation($"Generating ASN summary for company '{companyName} ({companyId})'.");
             var result = string.Empty;
-            var company = GetCompany(companyName);
+            var company = GetCompany(companyId);
 
             if (company != null)
             {
@@ -138,9 +154,12 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("summarize_financials")]
         [Description("Summarize financial data for a given company.")]
-        public string SummarizeFinancials([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string SummarizeFinancials(
+            [Description("The company id of the company for which to generate the summary.")] string companyId,
+            [Description("The company name for which to generate the summary.")] string companyName
+            )
         {
-            _logger.LogInformation($"Generating financial summary for company '{companyName}'.");
+            _logger.LogInformation($"Generating financial summary for company '{companyName} ({companyId})'.");
             var result = string.Empty;
             var company = GetCompany(companyName);
 
@@ -161,9 +180,12 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("summarize_corporate_timelines")]
         [Description("Summarize corporate timelines for the client when explicitly asked for by the user.")]
-        public string SummarizeCorporateTimelines([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string SummarizeCorporateTimelines(
+            [Description("The company id of the company for which to generate the summary.")] string companyId,
+            [Description("The company name for which to generate the summary.")] string companyName
+            )
         {
-            _logger.LogInformation($"Generating corporate timelines for company '{companyName}'.");
+            _logger.LogInformation($"Generating corporate timelines for company '{companyName} ({companyId})'.");
             var result = string.Empty;
             var company = GetCompany(companyName);
 
@@ -184,16 +206,22 @@ namespace AgenticReportGenerationApi.Plugins
 
         [KernelFunction("get_full_summary")]
         [Description("Get full summary for a given company.")]
-        public string GetFullSummary([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string GetFullSummary(
+            [Description("The company id of the company for which to generate the summary.")] string companyId,
+            [Description("The company name for which to generate the summary.")] string companyName
+            )
         {
             throw new NotImplementedException();
         }
 
         [KernelFunction("get_news_summary")]
         [Description("Get news summary for a given company.")]
-        public string GetNewsSummary([Description("The name of the company for which to generate the summary.")] string companyName)
+        public string GetNewsSummary(
+            [Description("The company id of the company for which to generate the summary.")] string companyId,
+            [Description("The company name for which to generate the summary.")] string companyName
+            )
         {
-            _logger.LogInformation($"Generating news summary for company '{companyName}'.");
+            _logger.LogInformation($"Generating news summary for company '{companyName} ({companyId})'.");
             var result = string.Empty;
             var company = GetCompany(companyName);
 
@@ -213,9 +241,9 @@ namespace AgenticReportGenerationApi.Plugins
             return result;
         }
 
-        private Company? GetCompany(string companyName)
+        private Company? GetCompany(string companyId)
         {
-            _memoryCache.TryGetValue(companyName, out Company? company);
+            _memoryCache.TryGetValue(companyId, out Company? company);
             return company;
         }
     }

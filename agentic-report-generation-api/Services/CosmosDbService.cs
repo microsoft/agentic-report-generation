@@ -9,7 +9,8 @@ namespace AgenticReportGenerationApi.Services
     {
         Task AddAsync(Company item);
         Task<Company> GetAsync(string id, string companyName);
-        Task<Company?> GetAsync(string companyName);
+        Task<Company?> GetCompanyByNameAsync(string companyName);
+        Task<Company?> GetCompanyByIdAsync(string companyId);
         Task<List<string>> GetCompanyNamesAsync();
         Task<List<Company>> GetAllCompaniesAsync();
         Task<Dictionary<string, string>> GetCompanyIdAndNameAsync();
@@ -74,7 +75,7 @@ namespace AgenticReportGenerationApi.Services
             }
         }
 
-        public async Task<Company?> GetAsync(string companyName)
+        public async Task<Company?> GetCompanyByNameAsync(string companyName)
         {
             var queryDefinition = new QueryDefinition(
                 "SELECT TOP 1 * FROM c WHERE c.CompanyName = @companyName"
@@ -90,6 +91,22 @@ namespace AgenticReportGenerationApi.Services
                 .GetItemQueryIterator<Company>(queryDefinition, requestOptions: queryRequestOptions);
 
             if (feedIterator.HasMoreResults)
+            {
+                FeedResponse<Company> response = await feedIterator.ReadNextAsync();
+                return response.FirstOrDefault();
+            }
+
+            return null;
+        }
+
+        public async Task<Company?> GetCompanyByIdAsync(string companyId)
+        {
+            var query = $"SELECT TOP 1 * FROM c WHERE c.CompanyId = '{@companyId}'";
+
+            QueryDefinition queryDefinition = new QueryDefinition(query);
+            FeedIterator<Company> feedIterator = _container.GetItemQueryIterator<Company>(queryDefinition);
+
+            while (feedIterator.HasMoreResults)
             {
                 FeedResponse<Company> response = await feedIterator.ReadNextAsync();
                 return response.FirstOrDefault();

@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Cors;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using AgenticReportGenerationApi.Converters;
+using Newtonsoft.Json.Linq;
 
 namespace AgenticReportGenerationApi.Controllers
 {
@@ -69,22 +70,24 @@ namespace AgenticReportGenerationApi.Controllers
                 var sessionId = chatRequest.SessionId;
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
 
-                var companyNames = await GetCompanyNamesAsync();
-                var companyNamesPrompt = CorePrompts.GetCompanyNamesPrompt(companyNames);
+                //var companyNames = await GetCompanyNamesAsync();
+                var jsonCompanyNames = await GetCompanyIdAndNameAsync();
+                //var companyNamesPrompt = CorePrompts.GetCompanyNamesPrompt(companyNames);
+                var companyNamesPrompt = CorePrompts.GetCompanyPrompt(jsonCompanyNames);
 
                 // Get company name from prompt
-                var companyName = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
+                var jsonCompany = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
 
                 // Remove double quotes from companyName
-                companyName = companyName.Replace("\"", "");
+                //companyName = companyName.Replace("\"", "");
 
-                if (companyName == "not_found")
+                if (jsonCompany == "not_found")
                 {
                     _logger.LogWarning("Company name not found in prompt.");
                     return new BadRequestResult();
                 }
 
-                await CacheCompanyAsync(companyName);                
+                await CacheCompanyAsync(jsonCompany);                
 
                 chatHistory.AddSystemMessage(companyNamesPrompt);
                 chatHistory.AddUserMessage(chatRequest.Prompt);
@@ -164,7 +167,7 @@ namespace AgenticReportGenerationApi.Controllers
         [HttpGet("by-name/{companyName}")]
         public async Task<IActionResult> Get(string companyName)
         {
-            var company = await _cosmosDbService.GetAsync(companyName);
+            var company = await _cosmosDbService.GetCompanyByNameAsync(companyName);
             return Ok(company);
         }
 
@@ -192,20 +195,35 @@ namespace AgenticReportGenerationApi.Controllers
             return schema.ToString();
         }
 
-        private async Task CacheCompanyAsync(string companyName)
+        /// <summary>
+        /// Looks up a company name in the cache or pulls it from the database and caches it.
+        /// </summary>
+        /// <param name="jsonCompany">JSON structure of a company in the format:
+        /// {
+        ///    "company_name": Microsoft,
+        ///    "company_id": 123456
+        /// }
+        /// </param>
+        /// <returns></returns>
+        /// <exception cref="InvalidOperationException"></exception>
+        private async Task CacheCompanyAsync(string jsonCompany)
         {
-            if (!_memoryCache.TryGetValue(companyName, out Company? company))
+            JObject jsonObject = JObject.Parse(jsonCompany);
+            string companyId = jsonObject["company_id"].ToString();
+            string companyName = jsonObject["company_name"].ToString();
+
+            if (!_memoryCache.TryGetValue(companyId, out Company? company))
             {
-                company = await _cosmosDbService.GetAsync(companyName);
+                company = await _cosmosDbService.GetCompanyByIdAsync(companyId);
 
                 if (company == null)
                 {
-                    _logger.LogWarning($"Company '{companyName}' not found in database.");
-                    throw new InvalidOperationException($"Company '{companyName}' not found in database.");
+                    _logger.LogWarning($"Company '{companyName}', with company ID '{companyId}' not found in database.");
+                    throw new InvalidOperationException($"Company '{companyName}', with company ID '{companyId}' not found in database.");
                 }
                 else
                 {
-                    _memoryCache.Set(companyName, company, TimeSpan.FromMinutes(120));
+                    _memoryCache.Set(companyId, company, TimeSpan.FromMinutes(120));
                 }
             }
         }
