@@ -70,16 +70,6 @@ public class RraActivity
 
     [JsonExtensionData]
     public Dictionary<string, object> DynamicFields { get; set; } = new Dictionary<string, object>();
-
-    public T? GetValue<T>(string key)
-    {
-        if (DynamicFields.TryGetValue(key, out var value))
-        {
-            return (T)Convert.ChangeType(value, typeof(T));
-        }
-
-        return default;
-    }
 }
 
 public class TopExecutive
