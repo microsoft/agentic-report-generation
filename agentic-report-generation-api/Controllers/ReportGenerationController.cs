@@ -222,6 +222,23 @@ namespace AgenticReportGenerationApi.Controllers
             return serialized;
         }
 
+        private async Task<string> GetCompanyIdAndNameAsync()
+        {
+            if (!_memoryCache.TryGetValue("CompanyIdAndName", out Dictionary<string, string> companyIdAndName))
+            {
+                companyIdAndName = await _cosmosDbService.GetCompanyIdAndNameAsync();
+                _memoryCache.Set("CompanyIdAndName", companyIdAndName, TimeSpan.FromMinutes(120));
+            }
+
+            var jsonOptions = new JsonSerializerOptions
+            {
+                WriteIndented = true // This will make the JSON more readable with indentation
+            };
+
+            var jsonString = JsonSerializer.Serialize(companyIdAndName, jsonOptions);
+            return jsonString;
+        }
+
         [NonAction]
         public void ConfigureServices(IServiceCollection services)
         {

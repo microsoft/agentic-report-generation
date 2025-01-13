@@ -12,6 +12,7 @@ namespace AgenticReportGenerationApi.Services
         Task<Company?> GetAsync(string companyName);
         Task<List<string>> GetCompanyNamesAsync();
         Task<List<Company>> GetAllCompaniesAsync();
+        Task<Dictionary<string, string>> GetCompanyIdAndNameAsync();
     }
 
     public class CosmosDbService : ICosmosDbService
@@ -112,6 +113,32 @@ namespace AgenticReportGenerationApi.Services
             }
 
             return uniqueCompanyNames;
+        }
+
+        public async Task<Dictionary<string, string>> GetCompanyIdAndNameAsync()
+        {
+            var query = "SELECT c.CompanyId, c.CompanyName FROM c";
+
+            QueryDefinition queryDefinition = new QueryDefinition(query);
+            FeedIterator<dynamic> feedIterator = _container.GetItemQueryIterator<dynamic>(queryDefinition);
+            Dictionary<string, string> companyIdNameDict = new Dictionary<string, string>();
+
+            while (feedIterator.HasMoreResults)
+            {
+                FeedResponse<dynamic> currentResultSet = await feedIterator.ReadNextAsync();
+                foreach (var item in currentResultSet)
+                {
+                    var companyId = item.CompanyId.ToString();
+                    var companyName = item.CompanyName.ToString();
+
+                    if (!string.IsNullOrEmpty(companyId) && !string.IsNullOrEmpty(companyName))
+                    {
+                        companyIdNameDict.Add(companyId, companyName);
+                    }
+                }
+            }
+
+            return companyIdNameDict;
         }
 
         public async Task<List<Company>> GetAllCompaniesAsync()
