@@ -12,24 +12,23 @@
 
         You will generate a report for the following sections, which the user may ask for one or more of, including instructions on how to generate the report:
         1. Overview
-            - Instructions: Use bullet points to list the company type, number of employees, industrty sector, index membership, and location.
+            - Instructions: List the company type, number of employees, industrty sector, index membership, and location.
         2. Executive and Board Summary
-            - Instructions: Use bullet points to summarize senior leadership team, board members, and recent changes
+            - Instructions: Summarize senior leadership team, board members, and recent changes
         3. RRA Activity Summary
-            - Instructions: Use bullet points to detail RRA interactions
+            - Instructions: Summarize RRA interactions
         4. Financial Summary
-            - Instructions: Respond that you cannot provide financial information
+            - Instructions: Summaryize financial data
         5. ASN Activity
             - Instructions: Only return ASN (New Assignments) for the years asked for by the user, with the following conditions:
                             1. The current year is {{{DateTime.Now.Year}}}, so you will base the data off of this year.
                             2. Reference the fiscal_year to return the proper new_assignments.
                             3. If the user asks for years outside this range, only provide data for the years within the valid range.
 
-            - Use bullet points to summarize ASN activity
         6. Summary Data
-            - Instructions: Use bullet points to summarize key data points
+            - Instructions: Summarize data points
         7. Corporate Timeline Summary
-            - Instructions: Use bullet points to summarize key corporate events
+            - Instructions: Summarize corporate events
 
         ###
         TONE:

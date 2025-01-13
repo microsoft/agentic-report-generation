@@ -15,7 +15,8 @@ public class Company
     public List<CorporateTimeline> corporate_timelines { get; set; }
     public List<FinancialData> financial_data { get; set; }
     public List<NewsData> news_data { get; set; }
-    public List<SummaryData> summary_data { get; set; }
+    [JsonProperty(PropertyName = "rra_activity")]
+    public List<RraActivity> rra_activity { get; set; }
 }
 
 public class BoardMember
@@ -39,11 +40,21 @@ public class FinancialData
     public string Currency { get; set; }
     public double? TotalRevenue { get; set; }
     public double? NetIncome { get; set; }
-    public double? NetIncomeMarginPercent { get; set; }
+    public double? NetIncome_Margin_Percent { get; set; }
+    public string GrowthOverPriorYear { get; set; }
+    public string EBTExclUnusualItems { get; set; }
+    public string MarginPercent_EBT { get; set; }
+    public string EarningsFromContOps { get; set; }
+    public string MarginPercent_Earnings { get; set; }
+    public double? MarginPercent_NetIncome { get; set; }
+    public string DilutedEPS { get; set; }
+    public string GrowthOverPriorYear_EPS { get; set; }
+    public string TotalAssets { get; set; }
+    public string GrowthOverPriorYear_Assets { get; set; }
 
     public override string ToString()
     {
-        return $"Fiscal Period Ending: {FiscalPeriodEnding}, Currency: {Currency}, Total Revenue: {TotalRevenue}, Net Income: {NetIncome}, Net Income Margin Percent: {NetIncomeMarginPercent}";
+        return $"FiscalPeriodEnding: {FiscalPeriodEnding}, Currency: {Currency}, TotalRevenue: {TotalRevenue}, NetIncome: {NetIncome}, NetIncome_Margin_Percent: {NetIncome_Margin_Percent}, GrowthOverPriorYear: {GrowthOverPriorYear}, EBTExclUnusualItems: {EBTExclUnusualItems}, MarginPercent_EBT: {MarginPercent_EBT}, EarningsFromContOps: {EarningsFromContOps}, MarginPercent_Earnings: {MarginPercent_Earnings}, MarginPercent_NetIncome: {MarginPercent_NetIncome}, DilutedEPS: {DilutedEPS}, GrowthOverPriorYear_EPS: {GrowthOverPriorYear_EPS}, TotalAssets: {TotalAssets}, GrowthOverPriorYear_Assets: {GrowthOverPriorYear_Assets}";
     }
 }
 
@@ -53,14 +64,22 @@ public class NewsData
     public string Source { get; set; }
 }
 
-public class SummaryData
+public class RraActivity
 {
-    public string as_of_date { get; set; }
-    public string fiscal_year { get; set; }
-    public double? revenue { get; set; }
-    public double? new_assignments { get; set; }
-    public double PNBs { get; set; }
-    public double BDs { get; set; }
+    public string category { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, object> DynamicFields { get; set; } = new Dictionary<string, object>();
+
+    public T? GetValue<T>(string key)
+    {
+        if (DynamicFields.TryGetValue(key, out var value))
+        {
+            return (T)Convert.ChangeType(value, typeof(T));
+        }
+
+        return default;
+    }
 }
 
 public class TopExecutive
