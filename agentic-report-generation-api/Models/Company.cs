@@ -4,8 +4,13 @@ public class Company
 {
     [JsonProperty(PropertyName = "id")]
     public string Id { get; set; }
+
     [JsonProperty(PropertyName = "CompanyName")]
     public string company_name { get; set; }
+
+    [JsonProperty(PropertyName = "CompanyId")]
+    public string CompanyId { get; set; }
+
     public string thumbnail { get; set; }
     public string company_description { get; set; }
     public string revenue { get; set; }
