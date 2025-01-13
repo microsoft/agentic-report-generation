@@ -232,7 +232,7 @@ namespace AgenticReportGenerationApi.Controllers
 
             var jsonOptions = new JsonSerializerOptions
             {
-                WriteIndented = true // This will make the JSON more readable with indentation
+                WriteIndented = true
             };
 
             var jsonString = JsonSerializer.Serialize(companyIdAndName, jsonOptions);
