@@ -184,7 +184,12 @@ namespace AgenticReportGenerationApi.Plugins
             if (company != null)
             {
                 CorporateTimeline[] corporateTimelineArray = company.corporate_timelines.ToArray();
-                result = string.Join(Environment.NewLine, corporateTimelineArray.Select(ct => ct.ToString()));
+                result = string.Join(Environment.NewLine + Environment.NewLine, corporateTimelineArray.Select(ct =>
+                    $"Date: {ct.Date}{Environment.NewLine}" +
+                    $"Type: {ct.Type}{Environment.NewLine}" +
+                    $"Headline: {ct.Headline}"
+                ));
+
                 _logger.LogInformation($"End generating corporate timelines for company '{companyName}'.");
             }
             else
