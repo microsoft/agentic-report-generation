@@ -9,9 +9,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using Newtonsoft.Json.Schema.Generation;
 using System.Net.Mime;
-using Microsoft.AspNetCore.Cors;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using AgenticReportGenerationApi.Converters;
 using Newtonsoft.Json.Linq;
 
@@ -70,16 +68,11 @@ namespace AgenticReportGenerationApi.Controllers
                 var sessionId = chatRequest.SessionId;
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
 
-                //var companyNames = await GetCompanyNamesAsync();
                 var jsonCompanyNames = await GetCompanyIdAndNameAsync();
-                //var companyNamesPrompt = CorePrompts.GetCompanyNamesPrompt(companyNames);
                 var companyNamesPrompt = CorePrompts.GetCompanyPrompt(jsonCompanyNames);
 
                 // Get company name from prompt
                 var jsonCompany = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
-
-                // Remove double quotes from companyName
-                //companyName = companyName.Replace("\"", "");
 
                 if (jsonCompany == "not_found")
                 {
