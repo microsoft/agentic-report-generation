@@ -72,15 +72,20 @@ namespace AgenticReportGenerationApi.Controllers
                 var companyNamesPrompt = CorePrompts.GetCompanyPrompt(jsonCompanyNames);
 
                 // Get company name from prompt
-                var jsonCompany = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
+                var jsonCompanyResponse = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
 
-                if (jsonCompany == "not_found")
+                if (jsonCompanyResponse.Contains("not_found"))
                 {
                     _logger.LogWarning("Company name not found in prompt.");
                     return new BadRequestResult();
                 }
+                else if (jsonCompanyResponse.Contains("choose_company"))
+                {
+                    _logger.LogInformation("Multiple similar company names detected.");
+                    return new OkObjectResult(jsonCompanyResponse);
+                }
 
-                await CacheCompanyAsync(jsonCompany);                
+                await CacheCompanyAsync(jsonCompanyResponse);                
 
                 chatHistory.AddSystemMessage(companyNamesPrompt);
                 chatHistory.AddUserMessage(chatRequest.Prompt);
