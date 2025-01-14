@@ -9,9 +9,11 @@ namespace AgenticReportGenerationApi.Services
     {
         Task AddAsync(Company item);
         Task<Company> GetAsync(string id, string companyName);
-        Task<Company?> GetAsync(string companyName);
+        Task<Company?> GetCompanyByNameAsync(string companyName);
+        Task<Company?> GetCompanyByIdAsync(string companyId);
         Task<List<string>> GetCompanyNamesAsync();
         Task<List<Company>> GetAllCompaniesAsync();
+        Task<Dictionary<string, string>> GetCompanyIdAndNameAsync();
     }
 
     public class CosmosDbService : ICosmosDbService
@@ -73,7 +75,7 @@ namespace AgenticReportGenerationApi.Services
             }
         }
 
-        public async Task<Company?> GetAsync(string companyName)
+        public async Task<Company?> GetCompanyByNameAsync(string companyName)
         {
             var queryDefinition = new QueryDefinition(
                 "SELECT TOP 1 * FROM c WHERE c.CompanyName = @companyName"
@@ -97,6 +99,22 @@ namespace AgenticReportGenerationApi.Services
             return null;
         }
 
+        public async Task<Company?> GetCompanyByIdAsync(string companyId)
+        {
+            var query = $"SELECT TOP 1 * FROM c WHERE c.CompanyId = '{@companyId}'";
+
+            QueryDefinition queryDefinition = new QueryDefinition(query);
+            FeedIterator<Company> feedIterator = _container.GetItemQueryIterator<Company>(queryDefinition);
+
+            while (feedIterator.HasMoreResults)
+            {
+                FeedResponse<Company> response = await feedIterator.ReadNextAsync();
+                return response.FirstOrDefault();
+            }
+
+            return null;
+        }
+
         public async Task<List<string>> GetCompanyNamesAsync()
         {
             var query = "SELECT DISTINCT VALUE c.CompanyName FROM c";
@@ -112,6 +130,32 @@ namespace AgenticReportGenerationApi.Services
             }
 
             return uniqueCompanyNames;
+        }
+
+        public async Task<Dictionary<string, string>> GetCompanyIdAndNameAsync()
+        {
+            var query = "SELECT c.CompanyId, c.CompanyName FROM c";
+
+            QueryDefinition queryDefinition = new QueryDefinition(query);
+            FeedIterator<dynamic> feedIterator = _container.GetItemQueryIterator<dynamic>(queryDefinition);
+            Dictionary<string, string> companyIdNameDict = new Dictionary<string, string>();
+
+            while (feedIterator.HasMoreResults)
+            {
+                FeedResponse<dynamic> currentResultSet = await feedIterator.ReadNextAsync();
+                foreach (var item in currentResultSet)
+                {
+                    var companyId = item.CompanyId.ToString();
+                    var companyName = item.CompanyName.ToString();
+
+                    if (!string.IsNullOrEmpty(companyId) && !string.IsNullOrEmpty(companyName))
+                    {
+                        companyIdNameDict.Add(companyId, companyName);
+                    }
+                }
+            }
+
+            return companyIdNameDict;
         }
 
         public async Task<List<Company>> GetAllCompaniesAsync()

@@ -76,5 +76,42 @@
 
          You must return the name of the company as a string. If the company name cannot be found, return 'not_found'.
          """;
+
+        public static string GetCompanyPrompt(string companyNames) =>
+         $$$"""
+         The following is a JSON list of companies and their corresponding company IDs in the following format:
+
+         [    
+            {
+                "123456":"Microsoft"
+            },
+            {
+                "789012":"Apple"
+            }
+         ]
+
+         where each node is in the format of "company_id":"company_name".
+
+         Companies: {{{companyNames}}}
+
+         When processing user queries or generating responses:
+
+         1. If a company name is mentioned and it exactly matches one in this list, use that name.
+         2. If a company name is mentioned but doesn't exactly match any in the list:
+            a. Check for close matches (e.g., misspellings, abbreviations, or partial names).
+            b. If a close match is found, and the difference is minimal (e.g., only one or two characters are off), automatically use the closest name without asking for confirmation.
+            c. If multiple close matches are found, choose the most likely one based on context.
+            d. If no close match can be identified with high confidence, inform the user that the company was not found.
+         3. Do not add any special characters including double or single quotes to the company name.
+         4. If no match or close match is found, inform the user that the company was not found.
+
+         You must return a JSON representation of the matching company including the company ID such as:
+         {
+            "company_name": "Microsoft",
+            "company_id": "123456"
+         }
+
+         If the company name cannot be found, return 'not_found'
+         """;
     }
 }
