@@ -201,9 +201,9 @@ namespace AgenticReportGenerationApi.Controllers
         /// <exception cref="InvalidOperationException"></exception>
         private async Task CacheCompanyAsync(string jsonCompany)
         {
-            JObject jsonObject = JObject.Parse(jsonCompany);
-            string companyId = jsonObject["company_id"].ToString();
-            string companyName = jsonObject["company_name"].ToString();
+            var jsonObject = JObject.Parse(jsonCompany);
+            var companyId = jsonObject["company_id"].ToString();
+            var companyName = jsonObject["company_name"].ToString();
 
             if (!_memoryCache.TryGetValue(companyId, out Company? company))
             {

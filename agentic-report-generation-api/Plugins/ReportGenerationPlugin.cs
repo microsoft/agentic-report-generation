@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Caching.Memory;
 using Microsoft.SemanticKernel;
 using System.ComponentModel;
-using System.ComponentModel.Design;
 using System.Text.Json;
 
 namespace AgenticReportGenerationApi.Plugins
@@ -28,7 +27,7 @@ namespace AgenticReportGenerationApi.Plugins
             _logger.LogInformation($"Generating overview summary for company '{companyName} ({companyId})'.");
             var result = string.Empty;
 
-            var company = GetCompany(companyName);
+            var company = GetCompany(companyId);
 
             if (company != null)
             {
@@ -53,7 +52,7 @@ namespace AgenticReportGenerationApi.Plugins
         {
             _logger.LogInformation($"Generating board changes for company '{companyName} ({companyId})'.");
             var result = string.Empty;
-            var company = GetCompany(companyName);
+            var company = GetCompany(companyId);
 
             if (company != null)
             {
@@ -78,7 +77,7 @@ namespace AgenticReportGenerationApi.Plugins
         {
             _logger.LogInformation($"Generating executive changes for company '{companyName} ({companyId})'.");
             var result = string.Empty;
-            var company = GetCompany(companyName);
+            var company = GetCompany(companyId);
 
             if (company != null)
             {
@@ -103,7 +102,7 @@ namespace AgenticReportGenerationApi.Plugins
         {
             _logger.LogInformation($"Generating RRA summary for company '{companyName} ({companyId})'.");
             var result = string.Empty;
-            var company = GetCompany(companyName);
+            var company = GetCompany(companyId);
 
             if (company != null)
             {
@@ -155,7 +154,7 @@ namespace AgenticReportGenerationApi.Plugins
         {
             _logger.LogInformation($"Generating financial summary for company '{companyName} ({companyId})'.");
             var result = string.Empty;
-            var company = GetCompany(companyName);
+            var company = GetCompany(companyId);
 
             if (company != null)
             {
@@ -180,7 +179,7 @@ namespace AgenticReportGenerationApi.Plugins
         {
             _logger.LogInformation($"Generating corporate timelines for company '{companyName} ({companyId})'.");
             var result = string.Empty;
-            var company = GetCompany(companyName);
+            var company = GetCompany(companyId);
 
             if (company != null)
             {
@@ -214,7 +213,7 @@ namespace AgenticReportGenerationApi.Plugins
         {
             _logger.LogInformation($"Generating news summary for company '{companyName} ({companyId})'.");
             var result = string.Empty;
-            var company = GetCompany(companyName);
+            var company = GetCompany(companyId);
 
             if (company != null)
             {
