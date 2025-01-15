@@ -74,10 +74,11 @@ namespace AgenticReportGenerationApi.Controllers
                     var jsonObject = new JObject
                     {
                         { "company_id", chatRequest.CompanyId },
-                        { "company_name", string.Empty }
+                        { "company_name", chatRequest.CompanyName }
                     };
 
                     await CacheCompanyAsync(jsonObject.ToString());
+                    chatHistory.AddUserMessage(jsonObject.ToString());
                 }
                 else
                 {
@@ -99,9 +100,9 @@ namespace AgenticReportGenerationApi.Controllers
                     }
 
                     await CacheCompanyAsync(jsonCompanyResponse);
+                    chatHistory.AddSystemMessage(companyNamesPrompt);
                 }
 
-                chatHistory.AddSystemMessage(companyNamesPrompt);
                 chatHistory.AddUserMessage(chatRequest.Prompt);
 
                 ChatMessageContent? result = await _chat.GetChatMessageContentAsync(
