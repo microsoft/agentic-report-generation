@@ -8,6 +8,10 @@ namespace AgenticReportGenerationApi.Models
 
         public string? UserId { get; set; }
 
+        public string? CompanyId { get; set; }
+
+        public  string? CompanyName { get; set; }
+
         [Required]
         public required string Prompt { get; set; }
     }

@@ -67,22 +67,42 @@ namespace AgenticReportGenerationApi.Controllers
 
                 var sessionId = chatRequest.SessionId;
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
+                var companyNamesPrompt = string.Empty;
 
-                var jsonCompanyNames = await GetCompanyIdAndNameAsync();
-                var companyNamesPrompt = CorePrompts.GetCompanyPrompt(jsonCompanyNames);
-
-                // Get company name from prompt
-                var jsonCompany = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
-
-                if (jsonCompany == "not_found")
+                if (!string.IsNullOrEmpty(chatRequest.CompanyId))
                 {
-                    _logger.LogWarning("Company name not found in prompt.");
-                    return new BadRequestResult();
+                    var jsonObject = new JObject
+                    {
+                        { "company_id", chatRequest.CompanyId },
+                        { "company_name", chatRequest.CompanyName }
+                    };
+
+                    await CacheCompanyAsync(jsonObject.ToString());
+                    chatHistory.AddUserMessage(jsonObject.ToString());
+                }
+                else
+                {
+                    var jsonCompanyNames = await GetCompanyIdAndNameAsync();
+                    companyNamesPrompt = CorePrompts.GetCompanyPrompt(jsonCompanyNames);
+
+                    // Get company name from prompt
+                    var jsonCompanyResponse = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
+
+                    if (jsonCompanyResponse.Contains("not_found"))
+                    {
+                        _logger.LogWarning("Company name not found in prompt.");
+                        return new BadRequestResult();
+                    }
+                    else if (jsonCompanyResponse.Contains("choose_company"))
+                    {
+                        _logger.LogInformation("Multiple similar company names detected.");
+                        return new OkObjectResult(jsonCompanyResponse);
+                    }
+
+                    await CacheCompanyAsync(jsonCompanyResponse);
+                    chatHistory.AddSystemMessage(companyNamesPrompt);
                 }
 
-                await CacheCompanyAsync(jsonCompany);                
-
-                chatHistory.AddSystemMessage(companyNamesPrompt);
                 chatHistory.AddUserMessage(chatRequest.Prompt);
 
                 ChatMessageContent? result = await _chat.GetChatMessageContentAsync(

@@ -97,12 +97,17 @@
          When processing user queries or generating responses:
 
          1. If a company name is mentioned and it exactly matches one in this list, use that name.
+            a. You must check to see if the company name provided is a subset of other company names in the list. If so, you must respond with a list of all similar company names in the JSON format specified below, ensuring that the user can select which one they mean.
+            b. If there are multiple names that match or are very similar (e.g., "AAS" and "AAS, inc"), ask the user to choose between them by providing options.
+
          2. If a company name is mentioned but doesn't exactly match any in the list:
             a. Check for close matches (e.g., misspellings, abbreviations, or partial names).
             b. If a close match is found, and the difference is minimal (e.g., only one or two characters are off), automatically use the closest name without asking for confirmation.
-            c. If multiple close matches are found, choose the most likely one based on context.
+            c. If multiple close matches are found, respond with a list of all companies in the JSON format specified below.
             d. If no close match can be identified with high confidence, inform the user that the company was not found.
+
          3. Do not add any special characters including double or single quotes to the company name.
+
          4. If no match or close match is found, inform the user that the company was not found.
 
          You must return a JSON representation of the matching company including the company ID such as:
@@ -111,7 +116,11 @@
             "company_id": "123456"
          }
 
-         If the company name cannot be found, return 'not_found'
+         5. Respond ONLY with the exact JSON format specified. Do not include any additional text, markdown formatting, or code block indicators.
+
+         If the company name cannot be found, include 'not_found' at the end of your response.
+
+         If there are multiple possibly company names you will ask the user to choose from, include 'choose_company' at the end of your response.
          """;
     }
 }
