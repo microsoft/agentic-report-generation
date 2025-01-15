@@ -326,7 +326,7 @@ const ChatInterface = ({ company }) => {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask about company executives, board changes, or request a full summary..."
+              placeholder="Ask about company executives, board changes, or requesting a full summary..."
               className="flex-1 px-4 py-3.5 bg-transparent focus:outline-none text-textDefault placeholder-textLight"
               disabled={isLoading}
             />
