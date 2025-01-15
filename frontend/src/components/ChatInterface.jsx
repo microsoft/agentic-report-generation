@@ -146,7 +146,9 @@ const ChatInterface = ({ company }) => {
             </style>
           </head>
           <body>
-            ${rawHtml}
+            <div class="prose max-w-none prose-ul:my-1 prose-li:my-1 prose-li:leading-tight prose-p:my-2 prose-headings:my-2">
+              ${rawHtml}
+            </div>
           </body>
         </html>
       `;
