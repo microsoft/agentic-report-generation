@@ -116,6 +116,8 @@
             "company_id": "123456"
          }
 
+         5. Respond ONLY with the exact JSON format specified. Do not include any additional text, markdown formatting, or code block indicators.
+
          If the company name cannot be found, include 'not_found' at the end of your response.
 
          If there are multiple possibly company names you will ask the user to choose from, include 'choose_company' at the end of your response.
