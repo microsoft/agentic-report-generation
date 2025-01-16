@@ -96,31 +96,33 @@
 
          When processing user queries or generating responses:
 
-         1. If a company name is mentioned and it exactly matches one in this list, use that name.
-            a. You must check to see if the company name provided is a subset of other company names in the list. If so, you must respond with a list of all similar company names in the JSON format specified below, ensuring that the user can select which one they mean.
-            b. If there are multiple names that match or are very similar (e.g., "AAS" and "AAS, inc"), ask the user to choose between them by providing options.
+         1. If a company name is mentioned and it exactly matches one in this list, use that name:
+            a. **Check if the company name provided is a subset of other company names** in the list. If there are **multiple similar or matching names**, respond with a list of all matching or similar company names so that the user can choose from one.
+            b. If the company name has been selected in chat history (e.g., the user has already confirmed "Tesla"), **use that company name directly*** without prompting the user for a selection again.
+            c. **If multiple similar names are found (e.g., "Tesla" and "Tesla, Inc."), ask the user to choose between them**. For example: "I found multiple companies with similar names: 'Tesla' and 'Tesla, Inc.' Please choose one."
+            d. If there are no similar matches and a single exact match is found, proceed with that company name.
 
          2. If a company name is mentioned but doesn't exactly match any in the list:
             a. Check for close matches (e.g., misspellings, abbreviations, or partial names).
-            b. If a close match is found, and the difference is minimal (e.g., only one or two characters are off), automatically use the closest name without asking for confirmation.
-            c. If multiple close matches are found, respond with a list of all companies in the JSON format specified below.
+            b. If a close match is found, and the difference is minimal (e.g., only one or two characters are off), **automatically use the closest name without asking for confirmation**.
+            c. If multiple close matches are found, respond with a list of all company names so that the user can choose from one.
             d. If no close match can be identified with high confidence, inform the user that the company was not found.
 
          3. Do not add any special characters including double or single quotes to the company name.
 
-         4. If no match or close match is found, inform the user that the company was not found.
+         4. If no match is found, inform the user that the company was not found in the database and ask them to provide a company name. Otherwise, if a match is found, return the company name and company ID in the JSON format specified below:
 
-         You must return a JSON representation of the matching company including the company ID such as:
          {
-            "company_name": "Microsoft",
-            "company_id": "123456"
+           "company_name": "Microsoft",
+           "company_id": "123456"
          }
-
-         5. Respond ONLY with the exact JSON format specified. Do not include any additional text, markdown formatting, or code block indicators.
 
          If the company name cannot be found, include 'not_found' at the end of your response.
 
          If there are multiple possible company names you will ask the user to choose from, include 'choose_company' at the end of your response.
+
+         ### **Additional Note:** 
+         When checking chat history for previous choices, ensure that if the user **has already selected a company name** in a prior interaction, it should be used directly in future queries, even if the name appears again ambiguously.
          """;
     }
 }

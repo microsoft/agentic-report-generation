@@ -82,25 +82,40 @@ namespace AgenticReportGenerationApi.Controllers
                 }
                 else
                 {
+                    // add user prompt to chat history
+                    chatHistory.AddUserMessage(chatRequest.Prompt);
+
                     var jsonCompanyNames = await GetCompanyIdAndNameAsync();
                     companyNamesPrompt = CorePrompts.GetCompanyPrompt(jsonCompanyNames);
 
                     // Get company name from prompt
-                    var jsonCompanyResponse = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
+                    var jsonCompanyResponse = await Util.GetCompanyName(_chat, chatHistory, companyNamesPrompt);
 
                     if (jsonCompanyResponse.Contains("not_found"))
                     {
                         _logger.LogWarning("Company name not found in prompt.");
-                        return new BadRequestResult();
+
+                        // remove "not_found" from the response
+                        jsonCompanyResponse = jsonCompanyResponse.Remove(jsonCompanyResponse.IndexOf("not_found"), "not_found".Length);
+
+                        chatHistory.AddSystemMessage(jsonCompanyResponse);
+
+                        return new OkObjectResult(jsonCompanyResponse);
                     }
                     else if (jsonCompanyResponse.Contains("choose_company"))
                     {
                         _logger.LogInformation("Multiple similar company names detected.");
+
+                        // remove "choose_company" from the response
+                        jsonCompanyResponse = jsonCompanyResponse.Remove(jsonCompanyResponse.IndexOf("choose_company"), "choose_company".Length);
+
+                        chatHistory.AddSystemMessage(jsonCompanyResponse);
+
                         return new OkObjectResult(jsonCompanyResponse);
                     }
 
                     await CacheCompanyAsync(jsonCompanyResponse);
-                    chatHistory.AddSystemMessage(companyNamesPrompt);
+                    //chatHistory.AddSystemMessage(companyNamesPrompt);
                 }
 
                 chatHistory.AddUserMessage(chatRequest.Prompt);
