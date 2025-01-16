@@ -16,11 +16,13 @@ export const getCompanies = async () => {
 };
 
 
-export const reportGeneration = async (prompt) => {
+export const reportGeneration = async ({prompt, companyId, company_name}) => {
   try {
     const response = await api.post('/report-generator', {
       "sessionId": "1",
       "useId": "1",
+      "CompanyId": companyId,
+      "CompanyName": company_name,
       "prompt": prompt,
     })
     return response.data

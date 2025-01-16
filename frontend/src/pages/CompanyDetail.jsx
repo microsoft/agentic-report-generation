@@ -155,7 +155,11 @@ export default function CompanyDetail() {
         className="relative bg-backgroundSurface shadow-md"
         style={{
           width: `${chatWidth}px`,
-          minWidth: '200px'
+          minWidth: '200px',
+          position: 'fixed', // Make the chat interface fixed
+          right: 0, // Align it to the right
+          top: 0, // Align it to the top
+          height: '100vh', // Full height
         }}
       >
         {/* The ChatInterface itself */}
