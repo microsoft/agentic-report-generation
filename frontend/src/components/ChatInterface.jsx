@@ -27,10 +27,23 @@ const ChatInterface = ({ company }) => {
     if (isLoading) {
       const element = document.querySelector('.dot-flashing');
       if (element) {
-        element.scrollIntoView({ behavior: 'smooth' });
+        element.scrollIntoView({ behavior: 'smooth', block: 'end' });
       }
     }
   }, [isLoading]);
+
+  // Keep messages scrolled to bottom when new messages arrive
+  useEffect(() => {
+    if (messages.length > 0 && !isLoading) {
+      const messagesContainer = document.querySelector('.overflow-y-auto');
+      if (messagesContainer) {
+        const lastMessage = messagesContainer.lastElementChild;
+        if (lastMessage) {
+          lastMessage.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+      }
+    }
+  }, [messages, isLoading]);
 
   // Sample "Quick Queries"
   const quickQueries = [
@@ -210,8 +223,8 @@ const ChatInterface = ({ company }) => {
                   >
                     {/* Message wrapper */}
                     <div
-                      className={`max-w-[75%] flex items-start gap-3 ${
-                        message.type === 'user' ? 'flex-row-reverse' : 'flex-row'
+                      className={`flex items-start gap-3 ${
+                        message.type === 'user' ? 'max-w-[75%] flex-row-reverse' : 'w-full flex-row'
                       }`}
                     >
                       {/* Avatar */}
@@ -243,6 +256,17 @@ const ChatInterface = ({ company }) => {
                                 prose-li:leading-tight
                                 prose-p:my-2
                                 prose-headings:my-2
+                                prose-table:my-2
+                                prose-table:w-full
+                                prose-table:overflow-x-auto
+                                prose-table:block
+                                prose-td:p-2
+                                prose-td:border
+                                prose-td:border-borderDefault
+                                prose-th:p-2
+                                prose-th:border
+                                prose-th:border-borderDefault
+                                prose-th:bg-backgroundSurface
                               "
                             >
                               {message.content}

@@ -13,7 +13,7 @@ export default function CompanyDetail() {
 
 
   // For resizing
-  const [chatWidth, setChatWidth] = useState(400);
+  const [chatWidth, setChatWidth] = useState(600);
   const [isResizing, setIsResizing] = useState(false);
 
   useEffect(() => {
@@ -121,15 +121,15 @@ export default function CompanyDetail() {
               news.map((article, index) => (
                 <div
                   key={index}
-                  className="bg-backgroundSurface p-4 rounded shadow flex flex-col md:flex-row border border-borderDefault"
+                  className="bg-backgroundSurface p-3 rounded shadow flex flex-col md:flex-row border border-borderDefault"
                 >
                   <img
                     src={company.thumbnail || ""}
                     alt={article.headline}
-                    className="w-32 h-32 object-cover mr-4 mb-4 md:mb-0 rounded"
+                    className="w-16 h-16 object-contain mr-3 mb-3 md:mb-0 rounded"
                   />
                   <div>
-                    <h3 className="text-lg font-bold text-textDefault">{article.headline}</h3>
+                    <h3 className="text-base font-semibold text-textDefault">{article.headline}</h3>
                     <p className="text-sm text-textMuted">
                       {article.date} | {article.source}
                     </p>

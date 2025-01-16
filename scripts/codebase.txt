@@ -1,0 +1,2515 @@
+Here is my codebase:
+
+<File: agentic-report-generation-api/appsettings.Development.json>
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "CosmosDbOptions": {
+    "DatabaseName": "test",
+    "ContainerName": "test",
+    "AccountUri": "test",
+    "TenantId": "test"
+  },
+  "AzureOpenAiOptions": {
+    "DeploymentName": "test",
+    "EndPoint": "test",
+    "ApiKey": "test"
+  }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/appsettings.json>
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "CosmosDbOptions": {
+    "DatabaseName": "test",
+    "ContainerName": "test",
+    "AccountUri": "test",
+    "TenantId": "test"
+  },
+  "AzureOpenAiOptions": {
+    "DeploymentName": "test",
+    "EndPoint": "test",
+    "ApiKey": "test"
+  }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Controllers/ReportGenerationController.cs>
+﻿using AgenticReportGenerationApi.Models;
+using AgenticReportGenerationApi.Prompts;
+using AgenticReportGenerationApi.Services;
+using Asp.Versioning;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Newtonsoft.Json.Schema.Generation;
+using System.Net.Mime;
+using Microsoft.AspNetCore.Cors;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using AgenticReportGenerationApi.Converters;
+
+namespace AgenticReportGenerationApi.Controllers
+{
+    [ApiVersion("1.0")]
+    [ApiController]
+    [Route("api/v{v:apiVersion}/[controller]")]
+    public class ReportGenerationController : ControllerBase
+    {
+        private readonly Kernel _kernel;
+        private readonly IChatCompletionService _chat;
+        private readonly ILogger<ReportGenerationController> _logger;
+        private readonly IChatHistoryManager _chatHistoryManager;
+        private readonly ICosmosDbService _cosmosDbService;
+        private readonly IMemoryCache _memoryCache;
+
+        public ReportGenerationController(
+            Kernel kernel,
+            IChatCompletionService chat,
+            IChatHistoryManager chathistorymanager,
+            ILogger<ReportGenerationController> logger,
+            ICosmosDbService cosmosDbService,
+            IMemoryCache memoryCache)
+        {
+            _kernel = kernel;
+            _logger = logger;
+            _chat = chat;
+            _chatHistoryManager = chathistorymanager;
+            _cosmosDbService = cosmosDbService;
+            _memoryCache = memoryCache;
+        }
+
+        [MapToApiVersion("1.0")]
+        [HttpPost("report-generator")]
+        [Consumes(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GenerateReport([FromBody] ReportGenerationRequest chatRequest)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(chatRequest.SessionId))
+                {
+                    // needed for new chats
+                    chatRequest.SessionId = Guid.NewGuid().ToString();
+                }
+
+                if (string.IsNullOrEmpty(chatRequest.Prompt))
+                {
+                    _logger.LogWarning("Chat request is missing prompt.");
+                    return new BadRequestResult();
+                }
+
+                var sessionId = chatRequest.SessionId;
+                var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
+
+                var companyNames = await GetCompanyNamesAsync();
+                var companyNamesPrompt = CorePrompts.GetCompanyNamesPrompt(companyNames);
+
+                // Get company name from prompt
+                var companyName = await Util.GetCompanyName(_chat, chatRequest.Prompt, companyNamesPrompt);
+
+                // Remove double quotes from companyName
+                companyName = companyName.Replace("\"", "");
+
+                if (companyName == "not_found")
+                {
+                    _logger.LogWarning("Company name not found in prompt.");
+                    return new BadRequestResult();
+                }
+
+                await CacheCompanyAsync(companyName);                
+
+                chatHistory.AddSystemMessage(companyNamesPrompt);
+                chatHistory.AddUserMessage(chatRequest.Prompt);
+
+                ChatMessageContent? result = await _chat.GetChatMessageContentAsync(
+                      chatHistory,
+                      executionSettings: new OpenAIPromptExecutionSettings { Temperature = 0.0, TopP = 0.0, ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions },
+                      kernel: _kernel);
+
+                return new OkObjectResult(result.Content);
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, $"Error processing request. {ex.Message}");
+                return StatusCode(StatusCodes.Status400BadRequest);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing request.");
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        [MapToApiVersion("1.0")]
+        [HttpPost("create-company")]
+        [Consumes(MediaTypeNames.Application.Json)]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> CreateCompany([FromBody] JsonElement companyJson)
+        {
+            try
+            {
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Converters = { new RraActivityJsonConverter() }
+                };
+
+                var company = JsonSerializer.Deserialize<Company>(companyJson.GetRawText(), options);
+
+                if (company == null)
+                {
+                    return new BadRequestResult();
+                }
+
+                company.Id = Guid.NewGuid().ToString();
+                await _cosmosDbService.AddAsync(company);
+                return Ok();
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Error deserializing JSON.");
+                return BadRequest("Invalid JSON format.");
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogError(ex, "Error processing request.");
+                return BadRequest(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing request.");
+                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred.");
+            }
+        }
+
+        [MapToApiVersion("1.0")]
+        [HttpGet("by-id/{id}")]
+        public async Task<IActionResult> Get(string id, [FromQuery] string companyName)
+        {
+            var company = await _cosmosDbService.GetAsync(id, companyName);
+            return Ok(company);
+        }
+
+        [MapToApiVersion("1.0")]
+        [HttpGet("by-name/{companyName}")]
+        public async Task<IActionResult> Get(string companyName)
+        {
+            var company = await _cosmosDbService.GetAsync(companyName);
+            return Ok(company);
+        }
+
+        [MapToApiVersion("1.0")]
+        [HttpGet("all-companies")]
+        public async Task<IActionResult> GetAllCompanies()
+        {
+            try
+            {
+                var companies = await _cosmosDbService.GetAllCompaniesAsync();
+                return Ok(companies);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving companies.");
+                return StatusCode(StatusCodes.Status500InternalServerError);
+            }
+        }
+
+        // TODO: May be needed for NL2SQL
+        private static string CompanySchema()
+        {
+            var generator = new JSchemaGenerator();
+            var schema = generator.Generate(typeof(Company));
+            return schema.ToString();
+        }
+
+        private async Task CacheCompanyAsync(string companyName)
+        {
+            if (!_memoryCache.TryGetValue(companyName, out Company? company))
+            {
+                company = await _cosmosDbService.GetAsync(companyName);
+
+                if (company == null)
+                {
+                    _logger.LogWarning($"Company '{companyName}' not found in database.");
+                    throw new InvalidOperationException($"Company '{companyName}' not found in database.");
+                }
+                else
+                {
+                    _memoryCache.Set(companyName, company, TimeSpan.FromMinutes(120));
+                }
+            }
+        }
+
+        private async Task<string> GetCompanyNamesAsync()
+        {
+            if (!_memoryCache.TryGetValue("companyNames", out List<string> companyNames))
+            {
+                companyNames = await _cosmosDbService.GetCompanyNamesAsync();
+                _memoryCache.Set("companyNames", companyNames, TimeSpan.FromMinutes(120));
+            }
+
+            var serialized = string.Join("| ", companyNames);
+            return serialized;
+        }
+
+        [NonAction]
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAllOrigins",
+                    builder =>
+                    {
+                        builder.AllowAnyOrigin()
+                               .AllowAnyMethod()
+                               .AllowAnyHeader();
+                    });
+            });
+        }
+
+        [NonAction]
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        {
+            app.UseCors("AllowAllOrigins");
+        }
+    }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Converters/RraActivityJsonConverter.cs>
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace AgenticReportGenerationApi.Converters
+{
+    public class RraActivityJsonConverter : JsonConverter<RraActivity>
+    {
+        public override RraActivity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.StartObject)
+            {
+                throw new JsonException();
+            }
+
+            var activity = new RraActivity();
+
+            while (reader.Read())
+            {
+                if (reader.TokenType == JsonTokenType.EndObject)
+                {
+                    return activity;
+                }
+
+                if (reader.TokenType != JsonTokenType.PropertyName)
+                {
+                    throw new JsonException();
+                }
+
+                var propertyName = reader.GetString();
+                reader.Read();
+
+                if (propertyName.ToLower() == "category")
+                {
+                    activity.category = reader.GetString();
+                }
+                else
+                {
+                    var value = reader.TokenType switch
+                    {
+                        JsonTokenType.Number => reader.GetDecimal().ToString(),
+                        JsonTokenType.String => reader.GetString(),
+                        JsonTokenType.True => "true",
+                        JsonTokenType.False => "false",
+                        _ => JsonSerializer.Deserialize<object>(ref reader, options)?.ToString() ?? string.Empty
+                    };
+
+                    activity.DynamicFields[propertyName] = value;
+                }
+            }
+
+            throw new JsonException();
+        }
+
+        public override void Write(Utf8JsonWriter writer, RraActivity value, JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+
+            writer.WriteString("category", value.category);
+
+            foreach (var kvp in value.DynamicFields)
+            {
+                writer.WriteString(kvp.Key, kvp.Value?.ToString());
+            }
+
+            writer.WriteEndObject();
+        }
+    }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Models/AzureOpenAiOptions.cs>
+﻿using System.ComponentModel.DataAnnotations;
+
+public class AzureOpenAiOptions
+{
+    public const string AzureOpenAI = "AzureOpenAiOptions";
+
+    [Required]
+    public string DeploymentName { get; set; }
+    [Required]
+    public string EndPoint { get; set; }
+    [Required]
+    public string ApiKey { get; set; }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Models/Company.cs>
+﻿using Newtonsoft.Json;
+
+public class Company
+{
+    [JsonProperty(PropertyName = "id")]
+    public string Id { get; set; }
+    [JsonProperty(PropertyName = "CompanyName")]
+    public string company_name { get; set; }
+    public string thumbnail { get; set; }
+    public string company_description { get; set; }
+    public string revenue { get; set; }
+    public string marketCap { get; set; }
+    public List<BoardMember> board_members { get; set; }
+    public List<TopExecutive> top_executives { get; set; }
+    public List<CorporateTimeline> corporate_timelines { get; set; }
+    public List<FinancialData> financial_data { get; set; }
+    public List<NewsData> news_data { get; set; }
+    [JsonProperty(PropertyName = "rra_activity")]
+    public List<RraActivity> rra_activity { get; set; }
+}
+
+public class BoardMember
+{
+    public string Name { get; set; }
+    public string Role { get; set; }
+    public int? Age { get; set; }
+    public int? Tenure { get; set; }
+}
+
+public class CorporateTimeline
+{
+    public string Date { get; set; }
+    public string Type { get; set; }
+    public string Headline { get; set; }
+}
+
+public class FinancialData
+{
+    public string FiscalPeriodEnding { get; set; }
+    public string Currency { get; set; }
+    public double? TotalRevenue { get; set; }
+    public double? NetIncome { get; set; }
+    public double? NetIncome_Margin_Percent { get; set; }
+    public string GrowthOverPriorYear { get; set; }
+    public string EBTExclUnusualItems { get; set; }
+    public string MarginPercent_EBT { get; set; }
+    public string EarningsFromContOps { get; set; }
+    public string MarginPercent_Earnings { get; set; }
+    public double? MarginPercent_NetIncome { get; set; }
+    public string DilutedEPS { get; set; }
+    public string GrowthOverPriorYear_EPS { get; set; }
+    public string TotalAssets { get; set; }
+    public string GrowthOverPriorYear_Assets { get; set; }
+
+    public override string ToString()
+    {
+        return $"FiscalPeriodEnding: {FiscalPeriodEnding}, Currency: {Currency}, TotalRevenue: {TotalRevenue}, NetIncome: {NetIncome}, NetIncome_Margin_Percent: {NetIncome_Margin_Percent}, GrowthOverPriorYear: {GrowthOverPriorYear}, EBTExclUnusualItems: {EBTExclUnusualItems}, MarginPercent_EBT: {MarginPercent_EBT}, EarningsFromContOps: {EarningsFromContOps}, MarginPercent_Earnings: {MarginPercent_Earnings}, MarginPercent_NetIncome: {MarginPercent_NetIncome}, DilutedEPS: {DilutedEPS}, GrowthOverPriorYear_EPS: {GrowthOverPriorYear_EPS}, TotalAssets: {TotalAssets}, GrowthOverPriorYear_Assets: {GrowthOverPriorYear_Assets}";
+    }
+}
+
+public class NewsData
+{
+    public string Headline { get; set; }
+    public string Source { get; set; }
+}
+
+public class RraActivity
+{
+    public string category { get; set; }
+
+    [JsonExtensionData]
+    public Dictionary<string, object> DynamicFields { get; set; } = new Dictionary<string, object>();
+}
+
+public class TopExecutive
+{
+    public string Name { get; set; }
+    public string Role { get; set; }
+    public int? Age { get; set; }
+    public int? Tenure { get; set; }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Models/CosmosDbOptions.cs>
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace AgenticReportGenerationApi.Models
+{
+    public class CosmosDbOptions
+    {
+        public const string CosmosDb = "CosmosDbOptions";
+
+        [Required]
+        public string DatabaseName { get; set; }
+        [Required]
+        public string ContainerName { get; set; }
+        [Required]
+        public string AccountUri { get; set; }
+        [Required]
+        public string TenantId {  get; set; }
+    }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Models/ReportGenerationRequest.cs>
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace AgenticReportGenerationApi.Models
+{
+    public class ReportGenerationRequest
+    {
+        public string? SessionId { get; set; }
+
+        public string? UserId { get; set; }
+
+        [Required]
+        public required string Prompt { get; set; }
+    }
+}
+
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Models/ReportGenerationResponse.cs>
+﻿namespace AgenticReportGenerationApi.Models
+{
+    public class ReportGenerationResponse
+    {
+    }
+}
+
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Plugins/ReportGenerationPlugin.cs>
+﻿using Microsoft.Extensions.Caching.Memory;
+using Microsoft.SemanticKernel;
+using System.ComponentModel;
+using System.Text.Json;
+
+namespace AgenticReportGenerationApi.Plugins
+{
+    public class ReportGenerationPlugin
+    {
+        private readonly IMemoryCache _memoryCache;
+        private readonly ILogger _logger;
+
+        public ReportGenerationPlugin(
+            IMemoryCache memoryCache,
+            ILogger logger)
+        {
+            _memoryCache = memoryCache;
+            _logger = logger;
+        }
+
+        [KernelFunction("get_executive_summary")]
+        [Description("Generates an overview for a given company.")]
+        public string GenerateCompanyOverview([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            _logger.LogInformation($"Generating overview summary for company '{companyName}'.");
+            var result = string.Empty;
+
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                result = company.company_description;
+
+                _logger.LogInformation($"End generating overview summary for company '{companyName}'.");
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
+        }
+
+        [KernelFunction("summarize_board_changes")]
+        [Description("Summarize board changes for a given company.")]
+        public string SummarizeBoardChanges([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            _logger.LogInformation($"Generating board changes for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                var boardMembers = company.board_members.ToList();
+                result = string.Join(Environment.NewLine, boardMembers.Select(dict => JsonSerializer.Serialize(dict)));
+                _logger.LogInformation($"End generating board changes for company '{companyName}'.");
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
+        }
+
+        [KernelFunction("summarize_executive_changes")]
+        [Description("Summarize executive changes for a given company.")]
+        public string SummarizeExecutiveChanges([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            _logger.LogInformation($"Generating executive changes for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                var executiveChanges = company.top_executives.ToList();
+                result = string.Join(Environment.NewLine, executiveChanges.Select(dict => JsonSerializer.Serialize(dict)));
+                _logger.LogInformation($"End generating executive changes for company '{companyName}'.");
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
+        }
+
+        [KernelFunction("summarize_rra_activity")]
+        [Description("Summarize RRA activity for a specified fiscal year or range of fiscal years when explicitly asked for by the user.")]
+        public string SummarizeRraActivity([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            _logger.LogInformation($"Generating RRA summary for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                var rraActivity = company.rra_activity.ToList();
+                result = string.Join(Environment.NewLine, rraActivity.Select(dict => JsonSerializer.Serialize(dict)));
+                _logger.LogInformation($"End generating RRA summary for company '{companyName}'.");
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
+        }
+
+        [KernelFunction("get_asn")]
+        [Description("Gets the ASN, or new assignments, which were conducted for the company during the specified fiscal year or range of fiscal years when explicitly asked by the user.")]
+        public string GetAsn([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            _logger.LogInformation($"Generating ASN summary for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                List<Dictionary<string, object>> newAssignments = company.rra_activity.Where(a => a.category.Equals("New Assignments", StringComparison.OrdinalIgnoreCase))
+                                                         .Select(a => a.DynamicFields)
+                                                         .ToList();
+
+                result = string.Join(Environment.NewLine, newAssignments.Select(dict => JsonSerializer.Serialize(dict)));
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
+        }
+
+        [KernelFunction("summarize_financials")]
+        [Description("Summarize financial data for a given company.")]
+        public string SummarizeFinancials([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            _logger.LogInformation($"Generating financial summary for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                FinancialData[] financialDataArray = company.financial_data.ToArray();
+                result = string.Join(Environment.NewLine, financialDataArray.Select(fd => fd.ToString()));
+                _logger.LogInformation($"End generating financial summary for company '{companyName}'.");
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
+        }
+
+        [KernelFunction("summarize_corporate_timelines")]
+        [Description("Summarize corporate timelines for the client when explicitly asked for by the user.")]
+        public string SummarizeCorporateTimelines([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            _logger.LogInformation($"Generating corporate timelines for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                CorporateTimeline[] corporateTimelineArray = company.corporate_timelines.ToArray();
+                result = string.Join(Environment.NewLine, corporateTimelineArray.Select(ct => ct.ToString()));
+                _logger.LogInformation($"End generating corporate timelines for company '{companyName}'.");
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
+        }
+
+        [KernelFunction("get_full_summary")]
+        [Description("Get full summary for a given company.")]
+        public string GetFullSummary([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            throw new NotImplementedException();
+        }
+
+        [KernelFunction("get_news_summary")]
+        [Description("Get news summary for a given company.")]
+        public string GetNewsSummary([Description("The name of the company for which to generate the summary.")] string companyName)
+        {
+            _logger.LogInformation($"Generating news summary for company '{companyName}'.");
+            var result = string.Empty;
+            var company = GetCompany(companyName);
+
+            if (company != null)
+            {
+                NewsData[] newsDataArray = company.news_data.ToArray();
+                result = string.Join(Environment.NewLine + Environment.NewLine, newsDataArray.Select(n =>
+                $"NewsData:\n  Headline: {n.Headline}\n  Source: {n.Source}"));
+                _logger.LogInformation($"End generating news summary for company '{companyName}'.");
+            }
+            else
+            {
+                result = $"Company '{companyName}' not found.";
+                _logger.LogWarning(result);
+            }
+
+            return result;
+        }
+
+        private Company? GetCompany(string companyName)
+        {
+            _memoryCache.TryGetValue(companyName, out Company? company);
+            return company;
+        }
+    }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Program.cs>
+using AgenticReportGenerationApi.Models;
+using AgenticReportGenerationApi.Services;
+using Microsoft.Extensions.Options;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel;
+using AgenticReportGenerationApi.Prompts;
+using AgenticReportGenerationApi.Plugins;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using Asp.Versioning;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+namespace AgenticReportGenerationApi
+{
+    public class Program
+    {
+        public static void Main(string[] args)
+        {
+            var builder = WebApplication.CreateBuilder(args);
+
+            builder.Services.AddControllers();
+
+            // Load configuration from appsettings.json and appsettings.local.json
+            builder.Configuration
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
+            builder.Services.AddApiVersioning(options =>
+            {
+                options.DefaultApiVersion = new ApiVersion(1);
+                options.ReportApiVersions = true;
+                options.AssumeDefaultVersionWhenUnspecified = true;
+                options.ApiVersionReader = ApiVersionReader.Combine(
+                    new UrlSegmentApiVersionReader(),
+                    new HeaderApiVersionReader("X-Api-Version"));
+            })
+            .AddMvc() // This is needed for controllers
+            .AddApiExplorer(options =>
+            {
+                options.GroupNameFormat = "'v'V";
+                options.SubstituteApiVersionInUrl = true;
+            });
+
+            builder.Services.AddOptions<CosmosDbOptions>()
+            .Bind(builder.Configuration.GetSection(CosmosDbOptions.CosmosDb))
+            .ValidateDataAnnotations();
+
+            builder.Services.AddOptions<AzureOpenAiOptions>()
+            .Bind(builder.Configuration.GetSection(AzureOpenAiOptions.AzureOpenAI))
+            .ValidateDataAnnotations();
+
+            builder.Services.AddMemoryCache();
+
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAllOrigins",
+                    builder =>
+                    {
+                        builder.AllowAnyOrigin()
+                               .AllowAnyMethod()
+                               .AllowAnyHeader();
+                    });
+            });
+
+            // Build the service provider
+            var serviceProvider = builder.Services.BuildServiceProvider();
+
+            // Access the options instance
+            var kernelOptions = serviceProvider.GetRequiredService<IOptions<AzureOpenAiOptions>>().Value;
+
+            builder.Services.AddTransient<Kernel>(s =>
+            {
+                var builder = Kernel.CreateBuilder();
+                builder.AddAzureOpenAIChatCompletion(kernelOptions.DeploymentName, kernelOptions.EndPoint, kernelOptions.ApiKey);
+                var memoryCache = s.GetRequiredService<IMemoryCache>();
+                var logger = s.GetRequiredService<ILogger<ReportGenerationPlugin>>();
+                var reportGenerationPlugin = new ReportGenerationPlugin(memoryCache, logger);
+                builder.Plugins.AddFromObject(reportGenerationPlugin, "GenerateReport");
+                return builder.Build();
+            });
+
+            builder.Services.AddSingleton<IChatCompletionService>(sp =>
+                     sp.GetRequiredService<Kernel>().GetRequiredService<IChatCompletionService>());
+
+            builder.Services.AddSingleton<IChatHistoryManager>(sp =>
+            {
+                var sysPrompt = CorePrompts.GetSystemPrompt();
+                return new ChatHistoryManager(sysPrompt);
+            });
+
+            builder.Services.Configure<ApiBehaviorOptions>(options =>
+            {
+                options.SuppressModelStateInvalidFilter = true;
+            });
+
+            builder.Services.AddSingleton<ICosmosDbService, CosmosDbService>();
+            builder.Services.AddEndpointsApiExplorer();
+            builder.Services.AddSwaggerGen();
+
+            // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+            builder.Services.AddOpenApi();
+
+            var app = builder.Build();
+
+            // Configure the HTTP request pipeline.
+            if (app.Environment.IsDevelopment())
+            {
+                app.MapOpenApi();
+                app.UseSwagger();
+                app.UseSwaggerUI();
+            }
+            else
+            {
+                app.UseExceptionHandler("/Home/Error");
+                app.UseHsts();
+            }
+
+            app.UseHttpsRedirection();
+            app.UseStaticFiles();
+
+            app.UseRouting();
+
+            app.UseCors("AllowAllOrigins");
+
+            app.UseAuthorization();
+
+            app.MapControllers();
+
+            app.Run();
+        }
+    }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Prompts/CorePrompts.cs>
+﻿namespace AgenticReportGenerationApi.Prompts
+{
+    public class CorePrompts
+    {
+        public static string GetSystemPrompt() =>
+        $$$"""
+        ###
+        ROLE:  
+        You are an AI assistant focusing on client and company insights. Only reference data from the data provided; do not add external information. 
+        Present the data in a clean, well-structured Markdown format, with each section properly highlighted. Use bullet points, headings, and subheadings
+        to clearly organize the data for easy reading.
+
+        You will generate a report for the following sections, which the user may ask for one or more of, including instructions on how to generate the report:
+        1. Overview
+            - Instructions: List the company type, number of employees, industrty sector, index membership, and location.
+        2. Executive and Board Summary
+            - Instructions: Summarize senior leadership team, board members, and recent changes
+        3. RRA Activity Summary
+            - Instructions: Summarize RRA interactions
+        4. Financial Summary
+            - Instructions: Summaryize financial data
+        5. ASN Activity
+            - Instructions: Only return ASN (New Assignments) for the years asked for by the user, with the following conditions:
+                            1. The current year is {{{DateTime.Now.Year}}}, so you will base the data off of this year.
+                            2. Reference the fiscal_year to return the proper new_assignments.
+                            3. If the user asks for years outside this range, only provide data for the years within the valid range.
+
+        6. Summary Data
+            - Instructions: Summarize data points
+        7. Corporate Timeline Summary
+            - Instructions: Summarize corporate events
+
+        ###
+        TONE:
+        Enthusiastic, engaging, informative.
+        ### 
+        INSTRUCTIONS:
+        Use details gathered from the data provided. Ask the user one question at a time if info is missing. Use conversation history for context and follow-ups.
+ 
+        ###
+        PROCESS:
+        1. Understand Query: Analyze user intent. If the question is not related to client and company insights, do not respond.
+        2. Identify Missing Info: Determine info needed for function calls based on user intent and history.
+        3. Respond: Provide detailed responses based on the data retrieved.
+        4. Clarify: Ask one clear question, use history for follow-up, wait for response.
+        5. Confirm Info: Verify info for function call, ask more if needed.
+        6. Be concise: Provide data based in the information you retrieved from the data provided. 
+           If the user's request is not realistic and cannot be answer based on history or information retrieved, let them know.
+        7. Execute Call: Use complete info, deliver detailed response.
+ 
+        ###       
+        GUIDELINES: 
+        - Be polite and patient.
+        - Use history for context.
+        - One question at a time.
+        - Confirm info before function calls.
+        - Give accurate responses in well-structured Markdown format.
+        - Decline non client and company insights related requests.
+        - Do not call the ReportGenerationPlugin if the request isn't client and company insights related.
+        """;
+
+        public static string GetCompanyNamesPrompt(string companyNames) =>
+         $$$"""
+         The following is a pipe seperated list of company names available to use: {{{companyNames}}}
+
+         When processing user queries or generating responses:
+
+         1. If a company name is mentioned and it exactly matches one in this list, use that name.
+         2. If a company name is mentioned but doesn't exactly match any in the list:
+            a. Check for close matches (e.g., misspellings, abbreviations, or partial names).
+            b. If a close match is found, and the difference is minimal (e.g., only one or two characters are off), automatically use the closest name without asking for confirmation.
+            c. If multiple close matches are found, choose the most likely one based on context.
+            d. If no close match can be identified with high confidence, inform the user that the company was not found.
+         3. Do not add any special characters including double or single quotes to the company name.
+         4. If no match or close match is found, inform the user that the company was not found.
+
+         You must return the name of the company as a string. If the company name cannot be found, return 'not_found'.
+         """;
+    }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Properties/launchSettings.json>
+{
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "launchUrl": "swagger",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "http://localhost:5266"
+    },
+    "https": {
+      "commandName": "Project",
+      "launchUrl": "swagger",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "https://localhost:7286;http://localhost:5266"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker",
+      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}/swagger",
+      "environmentVariables": {
+        "ASPNETCORE_HTTPS_PORTS": "8081",
+        "ASPNETCORE_HTTP_PORTS": "8080"
+      },
+      "publishAllPorts": true,
+      "useSSL": true
+    }
+  },
+  "$schema": "https://json.schemastore.org/launchsettings.json"
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Services/ChatHistoryManager.cs>
+﻿using System.Collections.Concurrent;
+using Microsoft.SemanticKernel.ChatCompletion;  // For ChatHistory
+
+namespace AgenticReportGenerationApi.Services;
+
+public interface IChatHistoryManager
+{
+    ChatHistory GetOrCreateChatHistory(string sessionId);
+    void CleanupOldHistories();
+    bool ClearChatHistory(string sessionId);
+}
+
+public class ChatHistoryManager : IChatHistoryManager
+{
+    private readonly ConcurrentDictionary<string, (ChatHistory History, DateTime LastAccessed)> _chatHistories
+        = new ConcurrentDictionary<string, (ChatHistory, DateTime)>();
+    private readonly string _systemMessage;
+    private readonly TimeSpan _expirationTime = TimeSpan.FromHours(1); // Adjust as needed
+
+    public ChatHistoryManager(string systemMessage)
+    {
+        _systemMessage = systemMessage;
+    }
+
+    public ChatHistory GetOrCreateChatHistory(string sessionId)
+    {
+        var (history, _) = _chatHistories.AddOrUpdate(
+            sessionId,
+            _ => (CreateNewChatHistory(), DateTime.UtcNow),
+            (_, old) => (old.History, DateTime.UtcNow)
+        );
+        return history;
+    }
+
+    private ChatHistory CreateNewChatHistory()
+    {
+        var chatHistory = new ChatHistory();
+        chatHistory.AddSystemMessage(_systemMessage);
+        return chatHistory;
+    }
+
+    public void CleanupOldHistories()
+    {
+        var cutoff = DateTime.UtcNow - _expirationTime;
+        foreach (var key in _chatHistories.Keys)
+        {
+            if (_chatHistories.TryGetValue(key, out var value) && value.LastAccessed < cutoff)
+            {
+                _chatHistories.TryRemove(key, out _);
+            }
+        }
+    }
+
+    // added method to allow the removal of a ChatHistory for a given session,
+    // can can be helpful when testing how the chathistory is impacting the responses
+    public bool ClearChatHistory(string sessionId)
+    {
+        return _chatHistories.TryRemove(sessionId, out _);
+    }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Services/CosmosDbService.cs>
+﻿using Microsoft.Extensions.Options;
+using AgenticReportGenerationApi.Models;
+using Microsoft.Azure.Cosmos;
+using Azure.Identity;
+
+namespace AgenticReportGenerationApi.Services
+{
+    public interface ICosmosDbService 
+    {
+        Task AddAsync(Company item);
+        Task<Company> GetAsync(string id, string companyName);
+        Task<Company?> GetAsync(string companyName);
+        Task<List<string>> GetCompanyNamesAsync();
+        Task<List<Company>> GetAllCompaniesAsync();
+    }
+
+    public class CosmosDbService : ICosmosDbService
+    {
+        private readonly Container _container;
+
+        public CosmosDbService(IOptions<CosmosDbOptions> options)
+        {
+            CosmosClient cosmosClient = new(
+               accountEndpoint: options.Value.AccountUri,
+               tokenCredential: new DefaultAzureCredential(
+                   new DefaultAzureCredentialOptions
+                   {
+                       TenantId = options.Value.TenantId,
+                       ExcludeEnvironmentCredential = true
+                   })
+           );
+
+           _container = cosmosClient.GetContainer(options.Value.DatabaseName, options.Value.ContainerName);
+        }
+
+        public async Task AddAsync(Company item)
+        {
+            var queryDefinition = new QueryDefinition("SELECT TOP 1 c.id FROM c");
+            var queryRequestOptions = new QueryRequestOptions
+            {
+                // Only query this specific partition
+                PartitionKey = new PartitionKey(item.company_name),
+                MaxItemCount = 1
+            };
+
+            var iterator = _container.GetItemQueryIterator<dynamic>(queryDefinition, requestOptions: queryRequestOptions);
+
+            if (iterator.HasMoreResults)
+            {
+                var firstBatch = await iterator.ReadNextAsync();
+                if (firstBatch.Any())
+                {
+                    // That means at least one document is already in this partition
+                    throw new InvalidOperationException(
+                        $"A document already exists in the '{item.company_name}' partition. Duplicates are not allowed.");
+                }
+            }
+
+            // If no items found in that partition, create a new one
+            await _container.CreateItemAsync(item, new PartitionKey(item.company_name));
+        }
+
+        public async Task<Company?> GetAsync(string id, string companyName)
+        {
+            try
+            {
+                var response = await _container.ReadItemAsync<Company>(id, new PartitionKey(companyName));
+                return response.Resource;
+            }
+            catch (CosmosException) //For handling item not found and other exceptions
+            {
+                return null;
+            }
+        }
+
+        public async Task<Company?> GetAsync(string companyName)
+        {
+            var queryDefinition = new QueryDefinition(
+                "SELECT TOP 1 * FROM c WHERE c.CompanyName = @companyName"
+            ).WithParameter("@companyName", companyName);
+
+            var queryRequestOptions = new QueryRequestOptions
+            {
+                PartitionKey = new PartitionKey(companyName),
+                MaxItemCount = 1
+            };
+
+            using FeedIterator<Company> feedIterator = _container
+                .GetItemQueryIterator<Company>(queryDefinition, requestOptions: queryRequestOptions);
+
+            if (feedIterator.HasMoreResults)
+            {
+                FeedResponse<Company> response = await feedIterator.ReadNextAsync();
+                return response.FirstOrDefault();
+            }
+
+            return null;
+        }
+
+        public async Task<List<string>> GetCompanyNamesAsync()
+        {
+            var query = "SELECT DISTINCT VALUE c.CompanyName FROM c";
+
+            QueryDefinition queryDefinition = new QueryDefinition(query);
+            FeedIterator<string> feedIterator = _container.GetItemQueryIterator<string>(queryDefinition);
+            List<string> uniqueCompanyNames = new List<string>();
+
+            while (feedIterator.HasMoreResults)
+            {
+                FeedResponse<string> currentResultSet = await feedIterator.ReadNextAsync();
+                uniqueCompanyNames.AddRange(currentResultSet.Resource);
+            }
+
+            return uniqueCompanyNames;
+        }
+
+        public async Task<List<Company>> GetAllCompaniesAsync()
+        {
+            var query = "SELECT * FROM c";
+            QueryDefinition queryDefinition = new QueryDefinition(query);
+            FeedIterator<Company> feedIterator = _container.GetItemQueryIterator<Company>(queryDefinition);
+            List<Company> companies = new List<Company>();
+
+            while (feedIterator.HasMoreResults)
+            {
+                FeedResponse<Company> currentResultSet = await feedIterator.ReadNextAsync();
+                companies.AddRange(currentResultSet.Resource);
+            }
+
+            return companies;
+        }
+    }
+}
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Startup.cs>
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+public class Startup
+{
+    public Startup(IConfiguration configuration)
+    {
+        Configuration = configuration;
+    }
+
+    public IConfiguration Configuration { get; }
+
+    public void ConfigureServices(IServiceCollection services)
+    {
+        services.AddCors(options =>
+        {
+            options.AddPolicy("AllowAllOrigins",
+                builder =>
+                {
+                    builder.AllowAnyOrigin()
+                           .AllowAnyMethod()
+                           .AllowAnyHeader();
+                });
+        });
+
+        // ...existing code...
+    }
+
+    public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+    {
+        if (env.IsDevelopment())
+        {
+            app.UseDeveloperExceptionPage();
+        }
+        else
+        {
+            app.UseExceptionHandler("/Home/Error");
+            app.UseHsts();
+        }
+
+        app.UseHttpsRedirection();
+        app.UseStaticFiles();
+
+        app.UseRouting();
+
+        app.UseCors("AllowAllOrigins");
+
+        app.UseAuthorization();
+
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapControllers();
+        });
+
+        // ...existing code...
+    }
+}
+
+--------------------------------------------------------------------------------
+<File: agentic-report-generation-api/Util/Util.cs>
+﻿namespace AgenticReportGenerationApi
+{
+    using Microsoft.SemanticKernel.ChatCompletion;
+    using Microsoft.SemanticKernel.Connectors.OpenAI;
+    
+    internal static class Util
+    {
+        public static async Task<string> GetCompanyName(
+            IChatCompletionService chat, 
+            string query, 
+            string companyNamesPrompt)
+        {
+            // ChatHistory is local to this helper since we are only using it to detect intent
+            ChatHistory chatHistory = new ChatHistory();
+
+            var companyName = "not_found";
+
+            chatHistory.AddSystemMessage(companyNamesPrompt);
+
+            chatHistory.AddUserMessage(query);
+
+            var executionSettings = new OpenAIPromptExecutionSettings()
+            {
+                Temperature = .5,
+            };
+
+            var result = await chat.GetChatMessageContentsAsync(
+                chatHistory,
+                executionSettings);
+
+            companyName = string.Join(", ", result.Select(o => o.ToString()));
+
+            return companyName;
+        }
+    }
+}
+--------------------------------------------------------------------------------
+<File: CODE_OF_CONDUCT.md>
+# Microsoft Open Source Code of Conduct
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+
+Resources:
+
+- [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/)
+- [Microsoft Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/)
+- Contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with questions or concerns
+
+--------------------------------------------------------------------------------
+<File: docs/frontend.md>
+# Frontend Implementation Documentation
+
+## 1. Overview
+
+The frontend application is a React-based system that provides an interactive interface for exploring company information and generating reports. It consists of two main views:
+
+1. **Company List View**: A searchable grid of companies with basic information
+2. **Company Detail View**: A detailed view of each company featuring:
+   - Company overview and metadata
+   - News feed
+   - Interactive chat interface for generating reports and analyzing company data
+
+The application employs a responsive design and integrates with a backend API for data retrieval and report generation.
+
+## 2. Technical Stack
+
+### Core Technologies
+- **React (v18.3.1)**: Main UI framework
+- **Vite (v6.0.5)**: Build tool and development server
+- **React Router (v7.1.1)**: Client-side routing
+
+### UI and Styling
+- **Tailwind CSS (v3.4.17)**: Utility-first CSS framework
+- **Lucide React (v0.469.0)**: Icon library
+- **PostCSS (v8.4.49)**: CSS processing
+- **Autoprefixer (v10.4.20)**: CSS compatibility
+
+### Data Processing
+- **Axios (v1.7.9)**: HTTP client
+- **React Markdown (v9.0.3)**: Markdown rendering
+- **MDX (v3.1.0)**: Enhanced Markdown support
+- **Remark plugins**: 
+  - remark-breaks
+  - remark-gfm
+
+### Development Tools
+- **ESLint (v9.17.0)**: Code linting
+- **Various ESLint plugins**: React-specific linting rules
+
+## 3. Features and Implementation
+
+### 3.1 Company Listing
+
+#### Implementation Details
+```javascript
+// CompanyList.jsx
+const [companiesData, setCompaniesData] = useState([]);
+
+useEffect(() => {
+  const fetchCompanies = async () => {
+    const data = await getCompanies();
+    setCompaniesData(data);
+  };
+  fetchCompanies();
+}, []);
+```
+
+#### API Integration
+- **Endpoint**: `GET /api/v1/ReportGeneration/all-companies`
+- **Response Format**:
+```javascript
+[{
+  id: string,
+  company_name: string,
+  company_description: string,
+  thumbnail: string,
+  news_data: Array<NewsItem>
+}]
+```
+
+### 3.2 Company Detail View
+
+#### Component Structure
+```javascript
+<div className="min-h-screen flex flex-col md:flex-row">
+  <MainContent />       // Company info and news
+  <ChatInterface />     // Resizable chat sidebar
+</div>
+```
+
+#### News Feed Implementation
+```javascript
+// CompanyDetail.jsx
+useEffect(() => {
+  const currentCompany = companiesData.find((c) => c.id === companyId);
+  setCompany(currentCompany);
+
+  async function getNews() {
+    const news = currentCompany.news_data;
+    setNews(news);
+  }
+
+  if (currentCompany) {
+    getNews();
+  }
+}, [companyId, companiesData]);
+```
+
+### 3.3 Chat Interface
+
+#### Core Functionality
+The chat interface (`ChatInterface.jsx`) provides real-time interaction for company analysis and report generation.
+
+#### Message Flow
+1. **User Input**:
+```javascript
+const handleSend = async () => {
+  if (!inputValue.trim()) return;
+  setIsLoading(true);
+
+  try {
+    const prompt = `company name: ${company_name}\n${inputValue}`;
+    const response = await reportGeneration(prompt);
+
+    const userMessage = {
+      id: messages.length + 1,
+      type: 'user',
+      content: inputValue,
+    };
+
+    const aiResponse = {
+      id: messages.length + 2,
+      type: 'ai',
+      content: response,
+    };
+
+    setMessages((prev) => [...prev, userMessage, aiResponse]);
+  } catch (error) {
+    console.error('Error:', error);
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+#### API Integration
+- **Endpoint**: `POST /api/v1/ReportGeneration/report-generator`
+- **Request Format**:
+```javascript
+{
+  sessionId: string,
+  useId: string,
+  prompt: string
+}
+```
+
+#### Quick Queries
+Predefined queries available for common requests:
+```javascript
+const quickQueries = [
+  'Generate an executive summary',
+  'Summarize executive & board changes',
+  `Summarize ${company_name} activity (3 years)`,
+  'Confirm ASN status',
+  'Summarize financials',
+  'Summarize corporate timeline',
+];
+```
+
+### 3.4 State Management
+
+#### Local State
+- Component-level state using React hooks
+- No global state management library required due to component hierarchy
+
+#### Data Flow
+1. Company data fetched at CompanyList level
+2. Passed down to CompanyCard components
+3. Individual company data accessed in CompanyDetail
+4. Chat state maintained within ChatInterface
+
+### 3.5 API Helper Implementation
+
+```javascript
+// helpers/index.js
+const api = axios.create({
+  baseURL: 'http://localhost:5266/api/v1/ReportGeneration',
+});
+
+export const getCompanies = async () => {
+  try {
+    const response = await api.get('/all-companies');
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+
+export const reportGeneration = async (prompt) => {
+  try {
+    const response = await api.post('/report-generator', {
+      sessionId: "1",
+      useId: "1",
+      prompt: prompt,
+    });
+    return response.data;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+};
+```
+
+### 3.6 Responsive Design Implementation
+
+#### Layout Structure
+- Mobile-first approach using Tailwind breakpoints
+- Flexible grid system for company cards
+- Resizable chat interface implementation:
+
+```javascript
+const [chatWidth, setChatWidth] = useState(400);
+const [isResizing, setIsResizing] = useState(false);
+
+useEffect(() => {
+  const handleMouseMove = (e) => {
+    if (!isResizing) return;
+    const newWidth = window.innerWidth - e.clientX;
+    setChatWidth(Math.min(Math.max(newWidth, 200), window.innerWidth * 0.9));
+  };
+
+  if (isResizing) {
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', () => setIsResizing(false));
+  }
+
+  return () => {
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', () => setIsResizing(false));
+  };
+}, [isResizing]);
+```
+
+### 3.7 Error Handling
+
+#### Implementation
+- API calls wrapped in try-catch blocks
+- Error states maintained at component level
+- Fallback UI components for error states
+
+```javascript
+const [error, setError] = useState(null);
+
+// Error handling in API calls
+try {
+  const data = await getCompanies();
+  setCompaniesData(data);
+} catch (error) {
+  setError(error.message);
+  console.error('Failed to fetch companies:', error);
+}
+```
+
+### 3.8 Loading States
+
+#### Implementation
+Custom loading animation for chat interface:
+```css
+.dot-flashing {
+  position: relative;
+  width: 4px;
+  height: 4px;
+  border-radius: 2px;
+  background-color: #666;
+  animation: dotFlashing 1s infinite linear alternate;
+  animation-delay: 0.5s;
+}
+```
+
+Loading states tracked per component:
+```javascript
+const [isLoading, setIsLoading] = useState(false);
+// Used in API calls and user interactions
+```
+--------------------------------------------------------------------------------
+<File: frontend/eslint.config.js>
+import js from '@eslint/js'
+import globals from 'globals'
+import react from 'eslint-plugin-react'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+
+export default [
+  { ignores: ['dist'] },
+  {
+    files: ['**/*.{js,jsx}'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        ecmaFeatures: { jsx: true },
+        sourceType: 'module',
+      },
+    },
+    settings: { react: { version: '18.3' } },
+    plugins: {
+      react,
+      'react-hooks': reactHooks,
+      'react-refresh': reactRefresh,
+    },
+    rules: {
+      ...js.configs.recommended.rules,
+      ...react.configs.recommended.rules,
+      ...react.configs['jsx-runtime'].rules,
+      ...reactHooks.configs.recommended.rules,
+      'react/jsx-no-target-blank': 'off',
+      'react-refresh/only-export-components': [
+        'warn',
+        { allowConstantExport: true },
+      ],
+    },
+  },
+]
+
+--------------------------------------------------------------------------------
+<File: frontend/index.html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+
+--------------------------------------------------------------------------------
+<File: frontend/package.json>
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "proxy": "http://localhost:5266",
+  "dependencies": {
+    "@mdx-js/mdx": "^3.1.0",
+    "@mdx-js/react": "^3.1.0",
+    "axios": "^1.7.9",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.3",
+    "react-router-dom": "^7.1.1",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.17.0",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "globals": "^15.14.0",
+    "lucide-react": "^0.469.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "vite": "^6.0.5"
+  }
+}
+
+--------------------------------------------------------------------------------
+<File: frontend/postcss.config.js>
+export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+} 
+--------------------------------------------------------------------------------
+<File: frontend/README.md>
+# React + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+
+--------------------------------------------------------------------------------
+<File: frontend/src/App.jsx>
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
+import CompanyList from './pages/CompanyList';
+import CompanyDetail from './pages/CompanyDetail';
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<CompanyList />} />
+      <Route path="/detail/:companyId" element={<CompanyDetail />} />
+    </Routes>
+  );
+}
+
+export default App;
+
+--------------------------------------------------------------------------------
+<File: frontend/src/components/ChatInterface.jsx>
+import React, { useState, useEffect } from 'react';
+import { MessageSquare, User, FileText, ChevronDown } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
+import remarkGfm from 'remark-gfm';
+import { reportGeneration } from '../helpers';
+
+
+const ChatInterface = ({ company }) => {
+  const { company_name } = company;
+  const [messages, setMessages] = useState([]);
+  const [inputValue, setInputValue] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (isLoading) {
+      const element = document.querySelector('.dot-flashing');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [isLoading]);
+
+  const quickQueries = [
+    'Generate an executive summary',
+    'Summarize executive & board changes',
+    `Summarize ${company_name} activity (3 years)`,
+    'Confirm ASN status',
+    'Summarize financials',
+    'Summarize corporate timeline',
+  ];
+
+  const handleSend = async () => {
+    if (!inputValue.trim()) return;
+    setIsLoading(true);
+
+    try {
+      const prompt = `company name: ${company_name}\n${inputValue}`;
+      const response = await reportGeneration(prompt);
+
+      // User message
+      const userMessage = {
+        id: messages.length + 1,
+        type: 'user',
+        content: inputValue,
+      };
+
+      // AI response
+      const aiResponse = {
+        id: messages.length + 2,
+        type: 'ai',
+        content: response, // The Markdown content
+      };
+
+      setMessages((prev) => [...prev, userMessage, aiResponse]);
+      setInputValue('');
+    } catch (error) {
+      console.error('Error fetching response:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleQuickQuery = (query) => {
+    setInputValue(query);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  return (
+    <div className="h-screen flex flex-col overflow-hidden text-textDefault">
+      {/* Main chat area */}
+      <div className="flex-1 overflow-hidden flex flex-col max-w-5xl w-full mx-auto px-4 py-4">
+        {messages.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center">
+            <MessageSquare className="w-6 h-6 stroke-[1.5] mb-3 text-primary" />
+            <h1 className="text-2xl font-medium mb-2">What can I help with?</h1>
+            <p className="text-textLight">
+              Ask about company insights or generate reports
+            </p>
+            {isLoading && (
+                <div className="py-4 flex justify-start">
+                  <div className="max-w-[75%] flex items-start gap-3">              
+                    <div className="bg-backgroundSurface px-4 py-3 rounded-2xl border border-borderDefault">
+                      <div className="dot-flashing"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto rounded-2xl bg-backgroundMessage p-4">
+            <div className="max-w-3xl mx-auto">
+              {messages.map((message) => (
+                <div key={message.id} className="py-4">
+                  <div
+                    className={`flex ${
+                      message.type === 'user' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    {/* Message content wrapper */}
+                    <div
+                      className={`max-w-[75%] flex items-start gap-3 ${
+                        message.type === 'user' ? 'flex-row-reverse' : 'flex-row'
+                      }`}
+                    >
+                      {/* Avatar - Show on left for AI, right for user */}
+                      <div className="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center bg-backgroundSurface border border-borderDefault">
+                        {message.type === 'user' ? (
+                          <User className="w-4 h-4 text-primary" />
+                        ) : (
+                          <MessageSquare className="w-4 h-4 text-primary" />
+                        )}
+                      </div>
+
+                      {/* Message content */}
+                      <div
+                        className={`min-w-0 ${
+                          message.type === 'user' ? 'items-end' : 'items-start'
+                        }`}
+                      >
+                        <div
+                          className={`prose prose-invert max-w-none
+                            prose-headings:font-bold
+                            prose-p:leading-relaxed
+                            ${
+                              message.type === 'user'
+                                ? 'bg-primary text-white px-4 py-3 rounded-2xl'
+                                : 'bg-backgroundSurface px-4 py-3 rounded-2xl border border-borderDefault'
+                            }`}
+                        >
+                          {message.type === 'ai' ? (
+                            <ReactMarkdown
+                              remarkPlugins={[remarkBreaks, remarkGfm]}
+                              className="prose-sm sm:prose-base whitespace-pre-wrap"
+                            >
+                              {message.content}
+                            </ReactMarkdown>
+                          ) : (
+                            message.content
+                          )}
+                        </div>
+
+                        {/* Citations */}
+                        {message.citations && (
+                          <div className="mt-4 w-full text-sm bg-backgroundSurface rounded-lg overflow-hidden border border-borderDefault">
+                            <div className="px-4 py-2 border-b border-borderDefault">
+                              <p className="font-medium text-sm text-textDefault">Sources</p>
+                            </div>
+                            <div className="p-4 space-y-2">
+                              {message.citations.map((citation, index) => (
+                                <div
+                                  key={index}
+                                  className="flex justify-between items-center text-textLight"
+                                >
+                                  <span>{citation.source}</span>
+                                  <span className="text-xs">{citation.date}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Generate Report button (for AI messages) */}
+                        {message.type === 'ai' && (
+                          <button className="mt-4 inline-flex items-center space-x-2 px-3 py-2 bg-backgroundSurface hover:bg-buttonHover text-textDefault rounded-lg border border-borderDefault transition-colors text-sm">
+                            <FileText className="w-4 h-4" />
+                            <span>Generate Full Report</span>
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* 3-dot "AI is typing" animation */}
+              {isLoading && (
+                <div className="py-4 flex justify-start">
+                  <div className="max-w-[75%] flex items-start gap-3">
+                    <div className="flex-shrink-0 w-7 h-7 rounded flex items-center justify-center bg-backgroundSurface border border-borderDefault">
+                      <MessageSquare className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="bg-backgroundSurface px-4 py-3 rounded-2xl border border-borderDefault">
+                      <div className="dot-flashing"></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Bottom section with examples and input */}
+        <div className="mt-4 space-y-4">
+          {/* Example questions */}
+          <div className="flex flex-wrap gap-2 justify-center">
+            {quickQueries.map((query, index) => (
+              <button
+                key={index}
+                onClick={() => handleQuickQuery(query)}
+                className="px-4 py-2 text-sm bg-backgroundSurface hover:bg-buttonHover text-textLight rounded-lg border border-borderDefault transition-colors"
+              >
+                {query}
+              </button>
+            ))}
+          </div>
+
+          {/* Input box */}
+          <div className="flex items-center space-x-3 bg-backgroundSurface rounded-xl border border-borderDefault shadow-lg">
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Ask about company executives, board changes, or request a full summary..."
+              className="flex-1 px-4 py-3.5 bg-transparent focus:outline-none text-textDefault placeholder-textLight"
+              disabled={isLoading}
+            />
+            <button
+              onClick={handleSend}
+              className="px-4 py-2 mx-2 bg-primary hover:bg-secondary text-white text-sm rounded-lg transition-colors"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Loading...' : 'Send'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ChatInterface;
+
+--------------------------------------------------------------------------------
+<File: frontend/src/components/CompanyCard.jsx>
+// src/components/CompanyCard.jsx
+import React from 'react';
+import { Link } from 'react-router-dom';
+
+export default function CompanyCard({ company }) {
+  return (
+    <div className="bg-white border border-borderDefault rounded-lg p-4 flex flex-col items-center transition-transform hover:scale-[1.01] hover:shadow-md">
+      <img
+        src={company.thumbnail}
+        alt={company.name}
+        className="w-16 h-16 object-contain mb-4"
+      />
+      <h2 className="text-lg font-semibold mb-2 text-textDefault">{company.company_name}</h2>
+      <p className="text-textLight text-sm text-center line-clamp-2">
+        {company.company_description}
+      </p>
+      <Link
+        to={`/detail/${company.id}`}
+        className="mt-4 bg-primary text-white py-2 px-6 rounded hover:bg-secondary transition-all text-sm font-medium"
+      >
+        View Details
+      </Link>
+    </div>
+  );
+}
+
+--------------------------------------------------------------------------------
+<File: frontend/src/components/Header.jsx>
+// src/components/Header.jsx
+import React from 'react';
+import { Link } from 'react-router-dom';
+
+export default function Header({ appName }) {
+  return (
+    <header className="w-full bg-primary text-white py-3 px-6 flex items-center justify-between shadow-md">
+      <Link to="/" className="text-xl font-bold tracking-wide">
+        {appName}
+      </Link>
+      <nav className="hidden md:flex gap-4 items-center">
+        <Link to="/" className="hover:underline">
+          Home
+        </Link>
+        <Link to="/about" className="hover:underline">
+          About
+        </Link>
+        {/* Add more links if needed */}
+      </nav>
+    </header>
+  );
+}
+
+--------------------------------------------------------------------------------
+<File: frontend/src/components/SearchBar.jsx>
+import React from 'react';
+
+export default function SearchBar({ searchTerm, setSearchTerm }) {
+  return (
+    <div className="flex items-center w-full md:w-1/2 bg-white p-2 rounded shadow-md">
+      <input
+        type="text"
+        className="flex-grow outline-none px-2 text-gray-700"
+        placeholder="Search companies..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+    </div>
+  );
+}
+
+--------------------------------------------------------------------------------
+<File: frontend/src/helpers/index.js>
+// Mock data for demonstration
+import axios from 'axios'
+
+
+const api = axios.create({
+  baseURL: 'http://localhost:5266/api/v1/ReportGeneration',
+})
+
+export const getCompanies = async () => {
+  try {
+    const response = await api.get('/all-companies')
+    return response.data
+  } catch (error) {
+    console.error(error)
+    return []
+  }
+};
+
+
+export const reportGeneration = async (prompt) => {
+  try {
+    const response = await api.post('/report-generator', {
+      "sessionId": "1",
+      "useId": "1",
+      "prompt": prompt,
+    })
+    return response.data
+  } catch (error) {
+    console.error(error)
+    return []
+  }
+}
+--------------------------------------------------------------------------------
+<File: frontend/src/index.css>
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Additional global overrides */
+html, body {
+  font-family: 'Inter', sans-serif;
+  background-color: theme('colors.surface'); /* Use our new surface color */
+  color: theme('colors.textDefault');
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  background-color: #f5f5f5;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #cccccc;
+  border-radius: 4px;
+}
+
+
+ 
+  .dot-flashing {
+    position: relative;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: #666;
+    color: #666;
+    animation: dotFlashing 1s infinite linear alternate;
+    animation-delay: 0.5s;
+    margin: 0 2px;
+  }
+  .dot-flashing::before,
+  .dot-flashing::after {
+    content: '';
+    display: inline-block;
+    position: absolute;
+    top: 0;
+  }
+  .dot-flashing::before {
+    left: -6px;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: #666;
+    color: #666;
+    animation: dotFlashing 1s infinite alternate;
+    animation-delay: 0s;
+  }
+  .dot-flashing::after {
+    left: 6px;
+    width: 4px;
+    height: 4px;
+    border-radius: 2px;
+    background-color: #666;
+    color: #666;
+    animation: dotFlashing 1s infinite alternate;
+    animation-delay: 1s;
+  }
+  @keyframes dotFlashing {
+    0% {
+      background-color: #999;
+    }
+    50%,
+    100% {
+      background-color: #333;
+    }
+  }
+
+--------------------------------------------------------------------------------
+<File: frontend/src/main.jsx>
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.jsx'
+import { BrowserRouter } from 'react-router-dom'
+
+createRoot(document.getElementById('root')).render(
+  <StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </StrictMode>,
+)
+
+--------------------------------------------------------------------------------
+<File: frontend/src/pages/CompanyDetail.jsx>
+// src/pages/CompanyDetail.jsx
+import React, { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import axios from 'axios';
+import {getCompanies} from '../helpers';
+import ChatInterface from '../components/ChatInterface';
+
+export default function CompanyDetail() {
+  const { companyId } = useParams();
+  const [company, setCompany] = useState(null);
+  const [news, setNews] = useState([]);
+  const [companiesData, setCompaniesData] = useState([]);
+
+
+  // For resizing
+  const [chatWidth, setChatWidth] = useState(400);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    async function fetchCompanies() {
+      const data = await getCompanies();
+      setCompaniesData(data);
+    }
+    fetchCompanies();
+  }, []); // Empty dependency array ensures this runs once on mount
+
+  useEffect(() => {
+    const currentCompany = companiesData.find((c) => c.id === companyId);
+    setCompany(currentCompany);
+
+    async function getNews() {
+      try {
+        const news = currentCompany.news_data;
+        console.log('Fetching news for', currentCompany.news_data);
+        setNews(news);
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    if (currentCompany) {
+      getNews();
+    }
+  }, [companyId, companiesData]); // Run this effect when companyId or companiesData changes
+
+  /* ----------------- 
+     Handle Resizing 
+   ------------------ */
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setIsResizing(true);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const newWidth = window.innerWidth - e.clientX;
+      if (newWidth < 200) {
+        setChatWidth(200);
+      } else if (newWidth > window.innerWidth * 0.9) {
+        setChatWidth(window.innerWidth * 0.9);
+      } else {
+        setChatWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  if (!company) {
+    return (
+      <div className="p-8 text-center">
+        <h2 className="text-xl font-semibold">Company not found</h2>
+        <Link to="/" className="text-primary underline">
+          Go to Home
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col md:flex-row bg-surface">
+      {/* Main Content */}
+      <div className="flex-1 md:mr-4 mb-4 px-4 py-6">
+        {/* Breadcrumb */}
+        <div className="mb-2 text-sm">
+          <Link to="/" className="text-primary underline">
+            Home
+          </Link>
+          <span className="mx-2">{'>'}</span>
+          <span className="text-textLight">{company.company_name}</span>
+        </div>
+
+        {/* Company Header */}
+        <div className="flex items-center mb-6">
+          <img
+            src={company.thumbnail}
+            alt={company.company_name}
+            className="w-12 h-12 object-contain mr-4"
+          />
+          <h1 className="text-2xl font-bold text-textDefault">{company.company_name} Overview</h1>
+        </div>
+
+        {/* Latest News Section */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4 text-textDefault">Latest News</h2>
+          <div className="space-y-4">
+            {news.length === 0 ? (
+              <p className="text-textLight">No news available.</p>
+            ) : (
+              news.map((article, index) => (
+                <div
+                  key={index}
+                  className="bg-backgroundSurface p-4 rounded shadow flex flex-col md:flex-row border border-borderDefault"
+                >
+                  <img
+                    src={company.thumbnail || ""}
+                    alt={article.headline}
+                    className="w-32 h-32 object-cover mr-4 mb-4 md:mb-0 rounded"
+                  />
+                  <div>
+                    <h3 className="text-lg font-bold text-textDefault">{article.headline}</h3>
+                    <p className="text-sm text-textMuted">
+                      {article.date} | {article.source}
+                    </p>
+                    <p className="mt-2 text-textDefault">{article.snippet}</p>
+                    <a
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-block text-primary underline text-sm"
+                    >
+                      Read More
+                    </a>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Sidebar Chat: Resizable */}
+      <div
+        className="relative bg-backgroundSurface shadow-md"
+        style={{
+          width: `${chatWidth}px`,
+          minWidth: '200px'
+        }}
+      >
+        {/* The ChatInterface itself */}
+        <ChatInterface company={company}/>
+
+        {/* Resizing handle (drag this to resize) */}
+        <div
+          className="absolute top-0 left-0 w-2 h-full cursor-col-resize z-10"
+          onMouseDown={handleMouseDown}
+        ></div>
+      </div>
+    </div>
+  );
+}
+
+--------------------------------------------------------------------------------
+<File: frontend/src/pages/CompanyList.jsx>
+// src/pages/CompanyList.jsx
+import React, { useState, useEffect } from 'react';
+import Header from '../components/Header';
+import SearchBar from '../components/SearchBar';
+import CompanyCard from '../components/CompanyCard';
+import {getCompanies} from '../helpers';
+
+export default function CompanyList() {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [companiesData, setCompaniesData] = useState([]);
+
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      const data = await getCompanies();
+      setCompaniesData(data);
+      console.log(data);
+    };
+
+    fetchCompanies();
+  }, []); // Empty dependency array ensures this runs once on mount
+
+  const filteredCompanies = companiesData.filter((company) =>
+    company.company_name && company.company_name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Header appName="Explore Companies" />
+
+      <div className="mt-6 px-4">
+        <SearchBar searchTerm={searchTerm} setSearchTerm={setSearchTerm} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6">
+        {filteredCompanies.map((company) => (
+          <CompanyCard key={company.id} company={company} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+--------------------------------------------------------------------------------
+<File: frontend/tailwind.config.js>
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: '#0a66c2', // LinkedIn’s signature blue
+        secondary: '#004182', // A deeper blue
+        surface: '#f3f2ef',   // LinkedIn's subtle background 
+        accent: '#067dbb',   // Another accent color
+        // Text colors
+        textDefault: '#222222',
+        textLight: '#666666',
+        textMuted: '#8c8c8c',
+        // For ChatInterface backgrounds, etc.
+        backgroundSurface: '#ffffff',
+        backgroundMessage: '#eef3f8',
+        buttonHover: '#e1e9f1',
+        borderDefault: '#d5d5d5',
+      },
+    },
+  },
+  plugins: [],
+} 
+--------------------------------------------------------------------------------
+<File: frontend/vite.config.js>
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react()],
+})
+
+--------------------------------------------------------------------------------
+<File: README.md>
+# Project
+
+> This repo has been populated by an initial template to help get you started. Please
+> make sure to update the content to build a great experience for community-building.
+
+As the maintainer of this project, please make a few updates:
+
+- Improving this README.MD file to provide a great experience
+- Updating SUPPORT.MD with content about this project's support experience
+- Understanding the security reporting process in SECURITY.MD
+- Remove this section from the README
+
+## Contributing
+
+This project welcomes contributions and suggestions.  Most contributions require you to agree to a
+Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
+the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
+
+When you submit a pull request, a CLA bot will automatically determine whether you need to provide
+a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
+provided by the bot. You will only need to do this once across all repos using our CLA.
+
+This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
+For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
+contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+
+## Trademarks
+
+This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft 
+trademarks or logos is subject to and must follow 
+[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks/usage/general).
+Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
+Any use of third-party trademarks or logos are subject to those third-party's policies.
+
+--------------------------------------------------------------------------------
+<File: SECURITY.md>
+<!-- BEGIN MICROSOFT SECURITY.MD V0.0.9 BLOCK -->
+
+## Security
+
+Microsoft takes the security of our software products and services seriously, which includes all source code repositories managed through our GitHub organizations, which include [Microsoft](https://github.com/Microsoft), [Azure](https://github.com/Azure), [DotNet](https://github.com/dotnet), [AspNet](https://github.com/aspnet) and [Xamarin](https://github.com/xamarin).
+
+If you believe you have found a security vulnerability in any Microsoft-owned repository that meets [Microsoft's definition of a security vulnerability](https://aka.ms/security.md/definition), please report it to us as described below.
+
+## Reporting Security Issues
+
+**Please do not report security vulnerabilities through public GitHub issues.**
+
+Instead, please report them to the Microsoft Security Response Center (MSRC) at [https://msrc.microsoft.com/create-report](https://aka.ms/security.md/msrc/create-report).
+
+If you prefer to submit without logging in, send email to [secure@microsoft.com](mailto:secure@microsoft.com).  If possible, encrypt your message with our PGP key; please download it from the [Microsoft Security Response Center PGP Key page](https://aka.ms/security.md/msrc/pgp).
+
+You should receive a response within 24 hours. If for some reason you do not, please follow up via email to ensure we received your original message. Additional information can be found at [microsoft.com/msrc](https://www.microsoft.com/msrc). 
+
+Please include the requested information listed below (as much as you can provide) to help us better understand the nature and scope of the possible issue:
+
+  * Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
+  * Full paths of source file(s) related to the manifestation of the issue
+  * The location of the affected source code (tag/branch/commit or direct URL)
+  * Any special configuration required to reproduce the issue
+  * Step-by-step instructions to reproduce the issue
+  * Proof-of-concept or exploit code (if possible)
+  * Impact of the issue, including how an attacker might exploit the issue
+
+This information will help us triage your report more quickly.
+
+If you are reporting for a bug bounty, more complete reports can contribute to a higher bounty award. Please visit our [Microsoft Bug Bounty Program](https://aka.ms/security.md/msrc/bounty) page for more details about our active programs.
+
+## Preferred Languages
+
+We prefer all communications to be in English.
+
+## Policy
+
+Microsoft follows the principle of [Coordinated Vulnerability Disclosure](https://aka.ms/security.md/cvd).
+
+<!-- END MICROSOFT SECURITY.MD BLOCK -->
+
+--------------------------------------------------------------------------------
+<File: SUPPORT.md>
+# TODO: The maintainer of this repo has not yet edited this file
+
+**REPO OWNER**: Do you want Customer Service & Support (CSS) support for this product/project?
+
+- **No CSS support:** Fill out this template with information about how to file issues and get help.
+- **Yes CSS support:** Fill out an intake form at [aka.ms/onboardsupport](https://aka.ms/onboardsupport). CSS will work with/help you to determine next steps.
+- **Not sure?** Fill out an intake as though the answer were "Yes". CSS will help you decide.
+
+*Then remove this first heading from this SUPPORT.MD file before publishing your repo.*
+
+# Support
+
+## How to file issues and get help  
+
+This project uses GitHub Issues to track bugs and feature requests. Please search the existing 
+issues before filing new issues to avoid duplicates.  For new issues, file your bug or 
+feature request as a new Issue.
+
+For help and questions about using this project, please **REPO MAINTAINER: INSERT INSTRUCTIONS HERE 
+FOR HOW TO ENGAGE REPO OWNERS OR COMMUNITY FOR HELP. COULD BE A STACK OVERFLOW TAG OR OTHER
+CHANNEL. WHERE WILL YOU HELP PEOPLE?**.
+
+## Microsoft Support Policy  
+
+Support for this **PROJECT or PRODUCT** is limited to the resources listed above.
+
+--------------------------------------------------------------------------------
+
+<end codebase> 
+
