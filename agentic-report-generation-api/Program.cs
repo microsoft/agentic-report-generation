@@ -84,10 +84,15 @@ namespace AgenticReportGenerationApi
             builder.Services.AddSingleton<IChatCompletionService>(sp =>
                      sp.GetRequiredService<Kernel>().GetRequiredService<IChatCompletionService>());
 
-            builder.Services.AddSingleton<IChatHistoryManager>(sp =>
+            builder.Services.AddSingleton<ChatHistoryManager>(sp =>
             {
                 var sysPrompt = CorePrompts.GetSystemPrompt();
                 return new ChatHistoryManager(sysPrompt);
+            });
+
+            builder.Services.AddSingleton<CompanyNameChatHistoryManager>(sp =>
+            {
+                return new CompanyNameChatHistoryManager(string.Empty);
             });
 
             builder.Services.Configure<ApiBehaviorOptions>(options =>

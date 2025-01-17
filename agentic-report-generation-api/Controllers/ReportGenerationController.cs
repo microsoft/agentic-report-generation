@@ -23,14 +23,16 @@ namespace AgenticReportGenerationApi.Controllers
         private readonly Kernel _kernel;
         private readonly IChatCompletionService _chat;
         private readonly ILogger<ReportGenerationController> _logger;
-        private readonly IChatHistoryManager _chatHistoryManager;
+        private readonly ChatHistoryManager _chatHistoryManager;
+        private readonly CompanyNameChatHistoryManager _companyNameChatHistoryManager;
         private readonly ICosmosDbService _cosmosDbService;
         private readonly IMemoryCache _memoryCache;
 
         public ReportGenerationController(
             Kernel kernel,
             IChatCompletionService chat,
-            IChatHistoryManager chathistorymanager,
+            ChatHistoryManager chatHistorymanager,
+            CompanyNameChatHistoryManager companyNameChatHistoryManager,
             ILogger<ReportGenerationController> logger,
             ICosmosDbService cosmosDbService,
             IMemoryCache memoryCache)
@@ -38,7 +40,8 @@ namespace AgenticReportGenerationApi.Controllers
             _kernel = kernel;
             _logger = logger;
             _chat = chat;
-            _chatHistoryManager = chathistorymanager;
+            _chatHistoryManager = chatHistorymanager;
+            _companyNameChatHistoryManager = companyNameChatHistoryManager;
             _cosmosDbService = cosmosDbService;
             _memoryCache = memoryCache;
         }
@@ -115,7 +118,6 @@ namespace AgenticReportGenerationApi.Controllers
                     }
 
                     await CacheCompanyAsync(jsonCompanyResponse);
-                    //chatHistory.AddSystemMessage(companyNamesPrompt);
                 }
 
                 chatHistory.AddUserMessage(chatRequest.Prompt);
