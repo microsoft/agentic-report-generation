@@ -201,15 +201,6 @@ namespace AgenticReportGenerationApi.Plugins
             return result;
         }
 
-        [KernelFunction("get_full_summary")]
-        [Description("Get full summary for a given company.")]
-        public string GetFullSummary(
-            [Description("The company id of the company for which to generate the summary.")] string companyId,
-            [Description("The company name for which to generate the summary.")] string companyName)
-        {
-            throw new NotImplementedException();
-        }
-
         [KernelFunction("get_news_summary")]
         [Description("Get news summary for a given company.")]
         public string GetNewsSummary(

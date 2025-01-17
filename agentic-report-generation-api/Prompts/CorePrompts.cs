@@ -30,6 +30,8 @@
         7. Corporate Timeline Summary
             - Instructions: Summarize corporate events
 
+        If the user asks for a tear sheet or full summary, generate a report using all the sections/info on that company.
+
         ###
         TONE:
         Enthusiastic, engaging, informative.
