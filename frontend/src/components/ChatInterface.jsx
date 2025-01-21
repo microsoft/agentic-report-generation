@@ -63,8 +63,9 @@ const ChatInterface = ({ company }) => {
     setIsLoading(true);
 
     try {
-      const prompt = `company id: ${companyId}\n${inputValue}`;
-      const response = await reportGeneration(prompt);
+
+      const prompt = `${inputValue}`;
+      const response = await reportGeneration({prompt, companyId, company_name});
 
       // 1) User message
       const userMessage = {
