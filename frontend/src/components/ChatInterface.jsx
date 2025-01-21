@@ -161,7 +161,31 @@ const ChatInterface = ({ company }) => {
             </style>
           </head>
           <body>
-            <div class="prose max-w-none prose-ul:my-1 prose-li:my-1 prose-li:leading-tight prose-p:my-2 prose-headings:my-2">
+            <div class="prose
+             max-w-none
+             prose-ul:my-1
+             prose-li:my-1
+             prose-li:leading-tight
+             prose-p:my-2
+             prose-headings:my-2
+             prose-h1:text-4xl
+             prose-h2:text-3xl
+             prose-h3:text-2xl
+             prose-h4:text-xl
+             prose-table:my-2
+             prose-table:w-full
+             prose-table:overflow-x-auto
+             prose-table:block
+             prose-td:p-2
+             prose-td:border
+             prose-td:border-borderDefault
+             prose-th:p-2
+             prose-th:border
+             prose-th:border-borderDefault
+             prose-th:bg-backgroundSurface
+             prose-ul:my-1
+             prose-strong:font-bold        
+             ">
               ${rawHtml}
             </div>
           </body>
