@@ -1,16 +1,20 @@
 // src/pages/CompanyDetail.jsx
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import axios from 'axios';
 import {getCompanies} from '../helpers';
 import ChatInterface from '../components/ChatInterface';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 export default function CompanyDetail() {
   const { companyId } = useParams();
   const [company, setCompany] = useState(null);
   const [news, setNews] = useState([]);
   const [companiesData, setCompaniesData] = useState([]);
+  const [chatKey, setChatKey] = useState(0);
 
+  const handleChatRefresh = () => {
+    setChatKey((prev) => prev + 1);
+  };
 
   // For resizing
   const [chatWidth, setChatWidth] = useState(600);
@@ -151,22 +155,24 @@ export default function CompanyDetail() {
       </div>
 
       {/* Sidebar Chat: Resizable */}
-      <div
-        className="relative bg-backgroundSurface shadow-md"
-        style={{
-          width: `${chatWidth}px`,
-          minWidth: '200px'
-        }}
-      >
-        {/* The ChatInterface itself */}
-        <ChatInterface company={company}/>
-
-        {/* Resizing handle (drag this to resize) */}
+      <ErrorBoundary onRefresh={handleChatRefresh}>
         <div
-          className="absolute top-0 left-0 w-2 h-full cursor-col-resize z-10"
-          onMouseDown={handleMouseDown}
-        ></div>
-      </div>
+          className="relative bg-backgroundSurface shadow-md"
+          style={{
+            width: `${chatWidth}px`,
+            minWidth: '200px'
+          }}
+        >
+          {/* The ChatInterface itself */}
+          <ChatInterface key={chatKey} company={company}/>
+
+          {/* Resizing handle (drag this to resize) */}
+          <div
+            className="absolute top-0 left-0 w-2 h-full cursor-col-resize z-10"
+            onMouseDown={handleMouseDown}
+          ></div>
+        </div>
+      </ErrorBoundary>
     </div>
   );
 }
