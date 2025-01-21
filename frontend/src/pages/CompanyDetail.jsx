@@ -156,21 +156,28 @@ export default function CompanyDetail() {
 
       {/* Sidebar Chat: Resizable */}
       <ErrorBoundary onRefresh={handleChatRefresh}>
-        <div
-          className="relative bg-backgroundSurface shadow-md"
+      <div
+          className="
+            relative
+            bg-backgroundSurface
+            shadow-md
+            sticky
+            top-0
+            h-screen
+            overflow-y-auto
+          "
           style={{
             width: `${chatWidth}px`,
-            minWidth: '200px'
+            minWidth: '200px',
           }}
         >
-          {/* The ChatInterface itself */}
-          <ChatInterface key={chatKey} company={company}/>
+        <ChatInterface key={chatKey} company={company} />
 
-          {/* Resizing handle (drag this to resize) */}
-          <div
-            className="absolute top-0 left-0 w-2 h-full cursor-col-resize z-10"
-            onMouseDown={handleMouseDown}
-          ></div>
+        {/* Resizing handle */}
+        <div
+          className="absolute top-0 left-0 w-2 h-full cursor-col-resize z-10"
+          onMouseDown={handleMouseDown}
+        ></div>
         </div>
       </ErrorBoundary>
     </div>
