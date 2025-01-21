@@ -21,6 +21,7 @@ const ChatInterface = ({ company }) => {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [simulateError, setSimulateError] = useState(false);
 
   // If AI is loading, scroll the 3-dot animation into view
   useEffect(() => {
@@ -63,8 +64,9 @@ const ChatInterface = ({ company }) => {
     setIsLoading(true);
 
     try {
-      const prompt = `company id: ${companyId}\n${inputValue}`;
-      const response = await reportGeneration(prompt);
+
+      const prompt = `${inputValue}`;
+      const response = await reportGeneration({prompt, companyId, company_name});
 
       // 1) User message
       const userMessage = {
@@ -190,10 +192,24 @@ const ChatInterface = ({ company }) => {
     }
   };
 
+  if (simulateError) {
+    throw new Error("Simulated error");
+  }
+
   return (
     <div className="h-screen flex flex-col overflow-hidden text-textDefault">
       {/* Main chat area */}
       <div className="flex-1 overflow-hidden flex flex-col max-w-5xl w-full mx-auto px-4 py-4">
+        {/* Simulate Error Button */}
+        {/* Uncomment the below code if you'd like to try
+            out the Error Boundary component */}
+
+        <button
+          onClick={() => setSimulateError(true)}
+          className="mb-4 px-4 py-2 bg-red-500 text-white rounded"
+        >
+          Simulate Error
+        </button>
         {messages.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center">
             <MessageSquare className="w-6 h-6 stroke-[1.5] mb-3 text-primary" />
