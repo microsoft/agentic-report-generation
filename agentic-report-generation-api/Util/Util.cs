@@ -1,11 +1,10 @@
-﻿namespace AgenticReportGenerationApi
-{
-    using AgenticReportGenerationApi.Prompts;
-    using Microsoft.SemanticKernel;
-    using Microsoft.SemanticKernel.ChatCompletion;
-    using Microsoft.SemanticKernel.Connectors.OpenAI;
-    using System.Text;
+﻿using AgenticReportGenerationApi.Prompts;
+using Microsoft.SemanticKernel;
+using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
 
+namespace AgenticReportGenerationApi
+{
     internal static class Util
     {
         public static async Task<string> GetCompanyName(

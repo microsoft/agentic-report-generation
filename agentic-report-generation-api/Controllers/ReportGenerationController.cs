@@ -143,8 +143,6 @@ namespace AgenticReportGenerationApi.Controllers
                     await CacheCompanyAsync(jsonCompanyResponse);
                 }
 
-                //chatHistory.AddUserMessage(chatRequest.Prompt);
-
                 ChatMessageContent? result = await _chat.GetChatMessageContentAsync(
                       chatHistory,
                       executionSettings: new OpenAIPromptExecutionSettings { Temperature = 0.0, TopP = 0.0, ToolCallBehavior = ToolCallBehavior.AutoInvokeKernelFunctions },
