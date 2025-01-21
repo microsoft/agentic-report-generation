@@ -96,7 +96,7 @@
 
          When processing user queries or generating responses:
 
-         1. If a company name is mentioned and it exactly matches one in this list, use that name:
+         1. If a company name is mentioned and it exactly matches one in this list, you must check the following:
             a. **Check if the company name provided is a subset of other company names** in the list. If there are **multiple similar or matching names**, respond with a list of all matching or similar company names so that the user can choose from one.
             b. If the company name has been selected in chat history (e.g., the user has already confirmed "Tesla"), **use that company name directly*** without prompting the user for a selection again.
             c. **If multiple similar names are found (e.g., "Tesla" and "Tesla, Inc."), ask the user to choose between them**. For example: "I found multiple companies with similar names: 'Tesla' and 'Tesla, Inc.' Please choose one."
@@ -123,6 +123,19 @@
 
          ### **Additional Note:** 
          When checking chat history for previous choices, ensure that if the user **has already selected a company name** in a prior interaction, it should be used directly in future queries, even if the name appears again ambiguously.
+         """;
+
+        public static string CheckForCompanyIdPrompt() =>
+         $$$"""
+         You are responsible for determining if a company_id exists in the chat history. The company_id will be in the following JSON format:
+
+         {
+           "company_name": "Microsoft",
+           "company_id": "123456"
+         }
+
+         If the company_id exists in the chat history, return 'true'. Otherwise, return 'false'. You must be sure that the company_id matches the last company the user asked about. If the company_name does not match and there
+         is not a company_id in JSON after the user asked for a report on that company, you must return 'false'. You must only return 'true' or 'false' and no other information.
          """;
     }
 }

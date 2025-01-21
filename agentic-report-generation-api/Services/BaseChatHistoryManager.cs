@@ -10,9 +10,11 @@ namespace AgenticReportGenerationApi.Services
         protected readonly string _systemMessage;
         protected readonly TimeSpan _expirationTime = TimeSpan.FromHours(1);
 
-        public BaseChatHistoryManager(string systemMessage)
+        public BaseChatHistoryManager(string? systemMessage)
         {
-            _systemMessage = systemMessage;
+            if (!String.IsNullOrEmpty(systemMessage)) {
+                _systemMessage = systemMessage;
+            }
         }
 
         public virtual ChatHistory GetOrCreateChatHistory(string sessionId)
@@ -28,7 +30,11 @@ namespace AgenticReportGenerationApi.Services
         protected virtual ChatHistory CreateNewChatHistory()
         {
             var chatHistory = new ChatHistory();
-            chatHistory.AddSystemMessage(_systemMessage);
+
+            if (!String.IsNullOrEmpty(_systemMessage))
+            {
+                chatHistory.AddSystemMessage(_systemMessage);
+            }
             return chatHistory;
         }
 

@@ -70,9 +70,16 @@ namespace AgenticReportGenerationApi.Controllers
 
                 var sessionId = chatRequest.SessionId;
                 var chatHistory = _chatHistoryManager.GetOrCreateChatHistory(sessionId);
+                var companyNameChatHistory = _companyNameChatHistoryManager.GetOrCreateChatHistory(sessionId);
                 var companyNamesPrompt = string.Empty;
 
-                if (!string.IsNullOrEmpty(chatRequest.CompanyId))
+                chatHistory.AddUserMessage(chatRequest.Prompt);
+
+                // check if we have the company id in the chat history so we know whether or not we should
+                // try and extract the company name
+                bool hasCompanyId = await Util.HasCompanyId(_chat, chatHistory);
+
+                if (!string.IsNullOrEmpty(chatRequest.CompanyId) || hasCompanyId)
                 {
                     var jsonObject = new JObject
                     {
@@ -81,18 +88,29 @@ namespace AgenticReportGenerationApi.Controllers
                     };
 
                     await CacheCompanyAsync(jsonObject.ToString());
-                    chatHistory.AddUserMessage(jsonObject.ToString());
+
+                    // if we found the company id is already in the chat history, we retrieved it from the get company name utility and don't
+                    // need to add it again
+                    if (!hasCompanyId)
+                    {
+                        chatHistory.AddUserMessage(jsonObject.ToString());
+                    }
                 }
                 else
                 {
-                    // add user prompt to chat history
-                    chatHistory.AddUserMessage(chatRequest.Prompt);
+                    // only add the system message the first time so we do not have multiple system messages added to the chat history
+                    if (companyNameChatHistory.Count == 0)
+                    {
+                        var jsonCompanyNames = await GetCompanyIdAndNameAsync();
+                        companyNamesPrompt = CorePrompts.GetCompanyPrompt(jsonCompanyNames);
+                        companyNameChatHistory.AddSystemMessage(companyNamesPrompt);
+                    }
 
-                    var jsonCompanyNames = await GetCompanyIdAndNameAsync();
-                    companyNamesPrompt = CorePrompts.GetCompanyPrompt(jsonCompanyNames);
+                    // add user prompt to chat history
+                    companyNameChatHistory.AddUserMessage(chatRequest.Prompt);
 
                     // Get company name from prompt
-                    var jsonCompanyResponse = await Util.GetCompanyName(_chat, chatHistory, companyNamesPrompt);
+                    var jsonCompanyResponse = await Util.GetCompanyName(_chat, companyNameChatHistory);
 
                     if (jsonCompanyResponse.Contains("not_found"))
                     {
@@ -101,6 +119,7 @@ namespace AgenticReportGenerationApi.Controllers
                         // remove "not_found" from the response
                         jsonCompanyResponse = jsonCompanyResponse.Remove(jsonCompanyResponse.IndexOf("not_found"), "not_found".Length);
 
+                        companyNameChatHistory.AddSystemMessage(jsonCompanyResponse);
                         chatHistory.AddSystemMessage(jsonCompanyResponse);
 
                         return new OkObjectResult(jsonCompanyResponse);
@@ -112,15 +131,19 @@ namespace AgenticReportGenerationApi.Controllers
                         // remove "choose_company" from the response
                         jsonCompanyResponse = jsonCompanyResponse.Remove(jsonCompanyResponse.IndexOf("choose_company"), "choose_company".Length);
 
+                        companyNameChatHistory.AddSystemMessage(jsonCompanyResponse);
                         chatHistory.AddSystemMessage(jsonCompanyResponse);
 
                         return new OkObjectResult(jsonCompanyResponse);
                     }
 
+                    // add the JSON of the selected company to the chat history so if a follow up question is asked, we can use it
+                    chatHistory.AddUserMessage(jsonCompanyResponse);
+
                     await CacheCompanyAsync(jsonCompanyResponse);
                 }
 
-                chatHistory.AddUserMessage(chatRequest.Prompt);
+                //chatHistory.AddUserMessage(chatRequest.Prompt);
 
                 ChatMessageContent? result = await _chat.GetChatMessageContentAsync(
                       chatHistory,
